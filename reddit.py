@@ -1,4 +1,5 @@
 import asyncio
+import os
 import httpx
 from typing import List, Dict, Any
 
@@ -6,7 +7,68 @@ REDDIT_HEADERS = {"User-Agent": "RedditResearchAgent/1.0 (research tool)"}
 REDDIT_BASE = "https://www.reddit.com"
 
 
-async def _fetch_subreddit_posts(
+def _has_oauth() -> bool:
+    return bool(os.getenv("REDDIT_CLIENT_ID") and os.getenv("REDDIT_CLIENT_SECRET"))
+
+
+# ── PRAW (OAuth) path ─────────────────────────────────────────────────────────
+
+def _praw_fetch_sync(query: str, subreddits: List[str], limit: int) -> List[Dict[str, Any]]:
+    """Synchronous PRAW fetch — called via run_in_executor to avoid blocking."""
+    import praw
+
+    reddit = praw.Reddit(
+        client_id=os.getenv("REDDIT_CLIENT_ID"),
+        client_secret=os.getenv("REDDIT_CLIENT_SECRET"),
+        user_agent="RedditResearchAgent/1.0",
+    )
+
+    all_posts: List[Dict[str, Any]] = []
+    for sub_name in subreddits:
+        try:
+            for submission in reddit.subreddit(sub_name).search(
+                query, limit=limit, sort="relevance", time_filter="year"
+            ):
+                all_posts.append({
+                    "id": submission.id,
+                    "title": submission.title,
+                    "subreddit": submission.subreddit.display_name,
+                    "author": str(submission.author) if submission.author else "[deleted]",
+                    "score": submission.score,
+                    "upvote_ratio": submission.upvote_ratio,
+                    "num_comments": submission.num_comments,
+                    "url": f"https://reddit.com{submission.permalink}",
+                    "selftext": (submission.selftext or "")[:800],
+                    "created_utc": submission.created_utc,
+                    "is_self": submission.is_self,
+                    "top_comments": [],
+                })
+        except Exception as exc:
+            print(f"[praw] r/{sub_name}: {exc}")
+
+    all_posts.sort(key=lambda x: x["score"], reverse=True)
+
+    # Fetch top comments for the highest-scoring posts
+    for post in all_posts[:8]:
+        try:
+            submission = reddit.submission(id=post["id"])
+            submission.comment_sort = "top"
+            submission.comments.replace_more(limit=0)
+            comments = []
+            for comment in list(submission.comments)[:5]:
+                body = getattr(comment, "body", "")
+                if body and body not in ("[deleted]", "[removed]"):
+                    comments.append(body[:400])
+            post["top_comments"] = comments[:3]
+        except Exception:
+            pass
+
+    return all_posts
+
+
+# ── Public JSON API (fallback, no credentials) ────────────────────────────────
+
+async def _public_fetch_posts(
     client: httpx.AsyncClient, query: str, subreddit: str, limit: int
 ) -> List[Dict[str, Any]]:
     url = f"{REDDIT_BASE}/r/{subreddit}/search.json"
@@ -14,9 +76,8 @@ async def _fetch_subreddit_posts(
     try:
         r = await client.get(url, params=params, headers=REDDIT_HEADERS, timeout=15.0)
         r.raise_for_status()
-        children = r.json().get("data", {}).get("children", [])
         posts = []
-        for child in children:
+        for child in r.json().get("data", {}).get("children", []):
             p = child.get("data", {})
             posts.append({
                 "id": p.get("id", ""),
@@ -34,11 +95,11 @@ async def _fetch_subreddit_posts(
             })
         return posts
     except Exception as exc:
-        print(f"[reddit] r/{subreddit} fetch failed: {exc}")
+        print(f"[public] r/{subreddit}: {exc}")
         return []
 
 
-async def _fetch_post_comments(
+async def _public_fetch_comments(
     client: httpx.AsyncClient, post_id: str, subreddit: str
 ) -> List[str]:
     url = f"{REDDIT_BASE}/r/{subreddit}/comments/{post_id}.json"
@@ -46,38 +107,42 @@ async def _fetch_post_comments(
         r = await client.get(url, headers=REDDIT_HEADERS, timeout=15.0)
         r.raise_for_status()
         data = r.json()
-        if len(data) < 2:
-            return []
         comments = []
-        for child in data[1].get("data", {}).get("children", [])[:5]:
-            body = (child.get("data") or {}).get("body", "")
-            if body and body not in ("[deleted]", "[removed]"):
-                comments.append(body[:400])
-        return comments
+        if len(data) > 1:
+            for child in data[1].get("data", {}).get("children", [])[:5]:
+                body = (child.get("data") or {}).get("body", "")
+                if body and body not in ("[deleted]", "[removed]"):
+                    comments.append(body[:400])
+        return comments[:3]
     except Exception:
         return []
 
 
-async def fetch_reddit_data(
-    query: str, subreddits: List[str], limit: int = 25
+async def _fetch_public(
+    query: str, subreddits: List[str], limit: int
 ) -> List[Dict[str, Any]]:
     async with httpx.AsyncClient() as client:
-        post_tasks = [_fetch_subreddit_posts(client, query, sub, limit) for sub in subreddits]
-        results = await asyncio.gather(*post_tasks)
-
-        all_posts: List[Dict[str, Any]] = []
-        for batch in results:
-            all_posts.extend(batch)
-
+        batches = await asyncio.gather(
+            *[_public_fetch_posts(client, query, sub, limit) for sub in subreddits]
+        )
+        all_posts = [p for batch in batches for p in batch]
         all_posts.sort(key=lambda x: x["score"], reverse=True)
 
-        # Fetch comments for the top 8 posts to stay within rate limits
-        top_posts = all_posts[:8]
-        comment_tasks = [
-            _fetch_post_comments(client, p["id"], p["subreddit"]) for p in top_posts
-        ]
-        comment_results = await asyncio.gather(*comment_tasks)
-        for post, comments in zip(top_posts, comment_results):
+        comment_results = await asyncio.gather(
+            *[_public_fetch_comments(client, p["id"], p["subreddit"]) for p in all_posts[:8]]
+        )
+        for post, comments in zip(all_posts[:8], comment_results):
             post["top_comments"] = comments
 
     return all_posts
+
+
+# ── Public entry point ────────────────────────────────────────────────────────
+
+async def fetch_reddit_data(
+    query: str, subreddits: List[str], limit: int = 25
+) -> List[Dict[str, Any]]:
+    if _has_oauth():
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _praw_fetch_sync, query, subreddits, limit)
+    return await _fetch_public(query, subreddits, limit)

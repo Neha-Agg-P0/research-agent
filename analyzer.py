@@ -1,6 +1,33 @@
 import os
+import re
 import anthropic
 from typing import Dict, List
+
+# FA relevance keywords — articles must contain at least one to pass the filter
+_FA_SIGNALS = {
+    "financial advisor", "financial adviser", "wealth management", "registered investment",
+    "broker-dealer", "broker dealer", "wirehouse", "independent advisor", "advisory firm",
+    "ria ", " ria,", "(ria)", "fee-only", "fiduciary", "custodian", "tamp",
+    "practice management", "advisor technology", "wealthtech", "lpl", "commonwealth",
+    "raymond james", "osaic", "schwab advisor", "fidelity institutional", "pershing",
+    "farther", "altruist", "carson group", "dynasty financial", "focus financial",
+    "hightower", "cetera", "aum", "assets under management", "cfp", "cerulli",
+    "ensemble", "breakaway", "succession planning", "managed accounts",
+}
+
+
+def _is_fa_relevant(article: dict) -> bool:
+    text = (article.get("title", "") + " " + article.get("summary", "")).lower()
+    return any(sig in text for sig in _FA_SIGNALS)
+
+
+def _load_context() -> str:
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "context.md")
+        with open(path, "r") as f:
+            return f.read()
+    except Exception:
+        return ""
 
 
 def _get_client() -> anthropic.Anthropic:
@@ -10,7 +37,7 @@ def _get_client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=api_key)
 
 
-_SYSTEM_PROMPT = """You are a senior financial services industry analyst. You give direct, confident, opinionated answers — not summaries of what sources say.
+_SYSTEM_PROMPT_BASE = """You are a senior financial services industry analyst. You give direct, confident, opinionated answers — not summaries of what sources say.
 
 Your job:
 1. Answer the query directly. Take a position. Make concrete claims.
@@ -30,7 +57,15 @@ Hard rules:
 - Be specific: name firms, cite numbers, reference dates when present.
 - Prefer concrete over hedged. "AUM growth rate is the #1 tracked KPI" beats "some advisors track AUM."
 - If benchmark data exists (Cerulli, Schwab, etc.), surface it — it is authoritative.
-- theme_analysis: headline only + max 3 bullet insights per theme. No prose paragraphs."""
+- Tag findings to advisor segments (solo/lead/ensemble/enterprise/RIA) wherever the answer differs by segment.
+- Flag competitor moves by firm name. Generic references ("a major BD") are not acceptable.
+- Identify white space explicitly: "No major BD currently offers X" or "Advisors report needing Y but solutions are limited."
+- theme_analysis: headline only + max 3 bullet insights per theme. No prose paragraphs.
+
+---
+
+DOMAIN CONTEXT:
+{context}"""
 
 
 _TOOL = {
@@ -175,13 +210,22 @@ _TOOL = {
 
 
 def analyze_content(articles: list, query: str, themes: List[str]) -> Dict:
+    # Drop articles with no FA-specific signal before Claude sees them
+    relevant = [a for a in articles if _is_fa_relevant(a)]
+    filtered_count = len(articles) - len(relevant)
+    if not relevant:
+        relevant = articles  # fallback: send everything if filter drops all
+
+    context = _load_context()
+    system_prompt = _SYSTEM_PROMPT_BASE.format(context=context if context else "(no domain context loaded)")
+
     lines = [
         f"Research query: {query}",
         f"Active themes: {', '.join(themes)}",
-        f"Total articles: {len(articles)}",
+        f"Total articles: {len(relevant)} (filtered out {filtered_count} non-FA articles)",
         "",
     ]
-    for i, a in enumerate(articles[:50], 1):
+    for i, a in enumerate(relevant[:50], 1):
         lines.append(f"[{i}] [{a.get('theme', '').upper()}] {a.get('source', '')}")
         lines.append(f"Title: {a.get('title', '')}")
         if a.get("published"):
@@ -193,7 +237,7 @@ def analyze_content(articles: list, query: str, themes: List[str]) -> Dict:
     response = _get_client().messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4000,
-        system=_SYSTEM_PROMPT,
+        system=system_prompt,
         tools=[_TOOL],
         tool_choice={"type": "any"},
         messages=[{"role": "user", "content": "\n".join(lines)}],

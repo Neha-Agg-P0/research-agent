@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reddit Research Agent</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #FF4500;
+      --orange-light: #fff3ef;
+      --bg: #F6F7F8;
+      --surface: #ffffff;
+      --border: #EDEFF1;
+      --text: #1c1c1c;
+      --muted: #878A8C;
+      --positive: #2e7d32;
+      --positive-bg: #e8f5e9;
+      --negative: #c62828;
+      --negative-bg: #ffebee;
+      --neutral-bg: #f5f5f5;
+      --mixed: #e65100;
+      --mixed-bg: #fff3e0;
+      --radius: 10px;
+      --shadow: 0 1px 4px rgba(0,0,0,.08);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .logo {
+      width: 28px; height: 28px;
+      background: var(--orange);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo svg { fill: white; width: 18px; height: 18px; }
+    header h1 { font-size: 16px; font-weight: 700; color: var(--text); }
+    header span { font-size: 12px; color: var(--muted); margin-left: 4px; }
+
+    /* ── Controls panel ── */
+    .controls {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+    }
+    .controls-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+
+    .query-field { flex: 1 1 260px; }
+    input[type="text"] {
+      height: 38px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      padding: 0 12px;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--bg);
+      outline: none;
+      transition: border-color .15s;
+      width: 100%;
+    }
+    input[type="text"]:focus { border-color: var(--orange); background: #fff; }
+
+    /* Subreddit tag input */
+    .subs-field { flex: 1 1 320px; }
+    .tag-box {
+      min-height: 38px;
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      cursor: text;
+      transition: border-color .15s;
+    }
+    .tag-box:focus-within { border-color: var(--orange); background: #fff; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--orange-light);
+      color: var(--orange);
+      border-radius: 4px;
+      padding: 2px 7px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .tag button {
+      background: none; border: none; cursor: pointer;
+      color: var(--orange); font-size: 14px; line-height: 1;
+      padding: 0; margin-left: 1px;
+      display: flex; align-items: center;
+    }
+    .tag button:hover { color: #c43900; }
+    #sub-input {
+      border: none; outline: none; background: transparent;
+      font-size: 13px; min-width: 100px; flex: 1;
+      padding: 2px 2px;
+    }
+
+    /* Limit field */
+    .limit-field { flex: 0 0 auto; }
+    .limit-row { display: flex; align-items: center; gap: 8px; }
+    input[type="range"] { width: 90px; accent-color: var(--orange); }
+    .limit-val { font-size: 13px; font-weight: 600; color: var(--text); min-width: 24px; }
+
+    /* Run button */
+    #run-btn {
+      height: 38px;
+      padding: 0 20px;
+      background: var(--orange);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      transition: background .15s, transform .1s;
+      flex-shrink: 0;
+      align-self: flex-end;
+    }
+    #run-btn:hover:not(:disabled) { background: #e03d00; }
+    #run-btn:active:not(:disabled) { transform: scale(.97); }
+    #run-btn:disabled { background: #ccc; cursor: not-allowed; }
+    #run-btn .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: none;
+    }
+    #run-btn.loading .spinner { display: block; }
+    #run-btn.loading .btn-text { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Main content ── */
+    main {
+      max-width: 1100px;
+      margin: 28px auto;
+      padding: 0 24px 60px;
+    }
+
+    /* Empty / loading / error state */
+    .state-box {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 60px 24px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .state-box .icon { font-size: 40px; margin-bottom: 12px; }
+    .state-box h3 { font-size: 16px; color: var(--text); margin-bottom: 6px; }
+    .state-box p { font-size: 14px; }
+
+    .progress-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 20px;
+      max-width: 320px;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: left;
+    }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .step.active { color: var(--orange); font-weight: 600; }
+    .step.done { color: var(--positive); }
+    .step-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+    .step.active .step-dot {
+      animation: pulse 1s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* Results */
+    .results-grid { display: flex; flex-direction: column; gap: 20px; }
+
+    /* Overview bar */
+    .overview {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      display: flex;
+      gap: 32px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .stat { display: flex; flex-direction: column; gap: 2px; }
+    .stat-val { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1; }
+    .stat-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .divider { width: 1px; background: var(--border); height: 36px; }
+
+    /* Sentiment badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+    .badge.positive { background: var(--positive-bg); color: var(--positive); }
+    .badge.negative { background: var(--negative-bg); color: var(--negative); }
+    .badge.neutral { background: var(--neutral-bg); color: #555; }
+    .badge.mixed { background: var(--mixed-bg); color: var(--mixed); }
+
+    /* Sentiment bar */
+    .sentiment-bar-wrap { display: flex; align-items: center; gap: 10px; }
+    .sentiment-bar {
+      height: 6px;
+      border-radius: 3px;
+      background: var(--border);
+      width: 120px;
+      overflow: hidden;
+    }
+    .sentiment-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: var(--positive);
+      transition: width .4s;
+    }
+    .sentiment-fill.neg { background: var(--negative); }
+
+    /* AI Analysis card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-header h2 { font-size: 14px; font-weight: 700; }
+    .card-header .chip {
+      font-size: 10px;
+      background: #f0f0f0;
+      color: var(--muted);
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .card-body { padding: 18px 20px; }
+
+    .summary-text {
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    .insights-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .insights-list li {
+      display: flex;
+      gap: 9px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    .insights-list li::before {
+      content: "→";
+      color: var(--orange);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* Themes */
+    .themes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .theme-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .theme-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .theme-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .freq-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      flex-shrink: 0; margin-top: 3px;
+    }
+    .freq-dot.high { background: var(--orange); }
+    .freq-dot.medium { background: #FFB300; }
+    .freq-dot.low { background: var(--muted); }
+    .theme-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+    /* Posts */
+    .posts-list { display: flex; flex-direction: column; gap: 10px; }
+    .post-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .post-main {
+      padding: 14px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      cursor: pointer;
+      user-select: none;
+    }
+    .post-main:hover { background: #fafafa; }
+    .post-score {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      min-width: 40px;
+      flex-shrink: 0;
+    }
+    .score-num { font-size: 13px; font-weight: 700; color: var(--text); }
+    .score-lbl { font-size: 9px; color: var(--muted); text-transform: uppercase; }
+    .post-body { flex: 1; min-width: 0; }
+    .post-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 5px;
+      line-height: 1.4;
+    }
+    .post-meta {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .post-meta a { color: var(--orange); text-decoration: none; }
+    .post-meta a:hover { text-decoration: underline; }
+    .post-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+    .chevron { color: var(--muted); font-size: 14px; transition: transform .2s; }
+    .post-card.expanded .chevron { transform: rotate(180deg); }
+
+    .post-detail {
+      padding: 0 16px 14px 16px;
+      border-top: 1px solid var(--border);
+      display: none;
+    }
+    .post-card.expanded .post-detail { display: block; }
+    .post-selftext {
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.6;
+      margin-top: 12px;
+      white-space: pre-wrap;
+    }
+    .comments-section { margin-top: 12px; }
+    .comments-section h4 { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+    .comment {
+      border-left: 2px solid var(--border);
+      padding: 6px 10px;
+      font-size: 12.5px;
+      color: #444;
+      line-height: 1.5;
+      margin-bottom: 6px;
+    }
+
+    /* Section labels */
+    .section-label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#FF4500"/><ellipse cx="10" cy="11" rx="6" ry="4" fill="white"/><circle cx="7.2" cy="9.5" r="1.1" fill="#FF4500"/><circle cx="12.8" cy="9.5" r="1.1" fill="#FF4500"/><circle cx="7.5" cy="11.2" r=".7" fill="#FF4500"/><circle cx="12.5" cy="11.2" r=".7" fill="#FF4500"/><path d="M8.5 13.2 Q10 14.2 11.5 13.2" stroke="#FF4500" stroke-width=".8" fill="none" stroke-linecap="round"/><circle cx="14.8" cy="7" r="1.3" fill="#FF4500"/><line x1="13.7" y1="7.5" x2="12.2" y2="8.5" stroke="#FF4500" stroke-width=".8"/></svg>
+  </div>
+  <h1>Reddit Research Agent</h1>
+  <span>powered by Claude</span>
+</header>
+
+<div class="controls">
+  <div class="controls-inner">
+    <div class="field query-field">
+      <label>Search query</label>
+      <input type="text" id="query-input" placeholder="e.g. best mechanical keyboards under $100" />
+    </div>
+
+    <div class="field subs-field">
+      <label>Subreddits</label>
+      <div class="tag-box" id="tag-box">
+        <input id="sub-input" type="text" placeholder="Add subreddit + Enter" autocomplete="off" autocapitalize="none" />
+      </div>
+    </div>
+
+    <div class="field limit-field">
+      <label>Posts / subreddit</label>
+      <div class="limit-row">
+        <input type="range" id="limit-range" min="5" max="50" value="25" step="5" />
+        <span class="limit-val" id="limit-val">25</span>
+      </div>
+    </div>
+
+    <button id="run-btn">
+      <div class="spinner"></div>
+      <span class="btn-text">Run Research</span>
+    </button>
+  </div>
+</div>
+
+<main id="main-content">
+  <div class="state-box" id="empty-state">
+    <div class="icon">🔍</div>
+    <h3>Enter a query and subreddits to get started</h3>
+    <p>The agent will fetch posts, analyze themes, and measure community sentiment.</p>
+  </div>
+</main>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+const state = {
+  subreddits: ['python', 'learnprogramming'],
+  loading: false,
+  step: 0,
+};
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+const queryInput = document.getElementById('query-input');
+const subInput   = document.getElementById('sub-input');
+const tagBox     = document.getElementById('tag-box');
+const limitRange = document.getElementById('limit-range');
+const limitVal   = document.getElementById('limit-val');
+const runBtn     = document.getElementById('run-btn');
+const mainContent = document.getElementById('main-content');
+
+// ── Subreddit tags ────────────────────────────────────────────────────────────
+function renderTags() {
+  tagBox.querySelectorAll('.tag').forEach(t => t.remove());
+  state.subreddits.forEach(sub => {
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.innerHTML = `r/${sub} <button aria-label="Remove r/${sub}">×</button>`;
+    tag.querySelector('button').onclick = () => {
+      state.subreddits = state.subreddits.filter(s => s !== sub);
+      renderTags();
+    };
+    tagBox.insertBefore(tag, subInput);
+  });
+}
+
+function addSubreddit(raw) {
+  const val = raw.trim().replace(/^r\//i, '').toLowerCase().replace(/[^a-z0-9_]/g, '');
+  if (!val || state.subreddits.includes(val)) return;
+  state.subreddits.push(val);
+  renderTags();
+}
+
+subInput.addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ',') && subInput.value.trim()) {
+    e.preventDefault();
+    addSubreddit(subInput.value);
+    subInput.value = '';
+  }
+  if (e.key === 'Backspace' && !subInput.value && state.subreddits.length) {
+    state.subreddits.pop();
+    renderTags();
+  }
+});
+
+subInput.addEventListener('blur', () => {
+  if (subInput.value.trim()) {
+    addSubreddit(subInput.value);
+    subInput.value = '';
+  }
+});
+
+tagBox.addEventListener('click', () => subInput.focus());
+
+// ── Limit slider ──────────────────────────────────────────────────────────────
+limitRange.addEventListener('input', () => { limitVal.textContent = limitRange.value; });
+
+// ── Research flow ─────────────────────────────────────────────────────────────
+runBtn.addEventListener('click', startResearch);
+queryInput.addEventListener('keydown', e => { if (e.key === 'Enter') startResearch(); });
+
+async function startResearch() {
+  const query = queryInput.value.trim();
+  if (!query) { queryInput.focus(); return; }
+  if (!state.subreddits.length) { subInput.focus(); return; }
+  if (state.loading) return;
+
+  state.loading = true;
+  runBtn.disabled = true;
+  runBtn.classList.add('loading');
+  showLoading();
+
+  try {
+    const resp = await fetch('/api/research', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, subreddits: state.subreddits, limit: parseInt(limitRange.value) }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: 'Request failed' }));
+      showError(err.detail || 'Unknown error');
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop(); // keep incomplete line
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const evt = JSON.parse(line.slice(6));
+          handleEvent(evt);
+        } catch {}
+      }
+    }
+  } catch (err) {
+    showError('Network error: ' + err.message);
+  } finally {
+    state.loading = false;
+    runBtn.disabled = false;
+    runBtn.classList.remove('loading');
+  }
+}
+
+function handleEvent(evt) {
+  if (evt.type === 'progress') updateProgress(evt.step, evt.message);
+  else if (evt.type === 'results') renderResults(evt.posts, evt.analysis);
+  else if (evt.type === 'error') showError(evt.message);
+}
+
+// ── UI states ─────────────────────────────────────────────────────────────────
+function showLoading() {
+  mainContent.innerHTML = `
+    <div class="state-box">
+      <div class="icon">⏳</div>
+      <h3>Researching…</h3>
+      <div class="progress-steps">
+        <div class="step active" id="step-1"><div class="step-dot"></div><span>Connecting to Reddit</span></div>
+        <div class="step" id="step-2"><div class="step-dot"></div><span>Analyzing with Claude</span></div>
+      </div>
+    </div>`;
+}
+
+function updateProgress(step, message) {
+  const el1 = document.getElementById('step-1');
+  const el2 = document.getElementById('step-2');
+  if (!el1) return;
+  if (step === 1) { el1.classList.add('active'); el1.querySelector('span').textContent = message; }
+  if (step === 2) {
+    el1.classList.remove('active'); el1.classList.add('done');
+    el2.classList.add('active'); el2.querySelector('span').textContent = message;
+  }
+}
+
+function showError(msg) {
+  mainContent.innerHTML = `
+    <div class="state-box">
+      <div class="icon">⚠️</div>
+      <h3>Something went wrong</h3>
+      <p>${escHtml(msg)}</p>
+    </div>`;
+}
+
+// ── Render results ────────────────────────────────────────────────────────────
+function renderResults(posts, analysis) {
+  const score = analysis.sentiment_score ?? 0;
+  const pct   = Math.round(Math.abs(score) * 100);
+  const isNeg = score < 0;
+
+  mainContent.innerHTML = `
+    <div class="results-grid">
+
+      <!-- Overview -->
+      <div class="overview">
+        <div class="stat">
+          <span class="stat-val">${posts.length}</span>
+          <span class="stat-lbl">Posts found</span>
+        </div>
+        <div class="divider"></div>
+        <div class="stat">
+          <span class="stat-val">${[...new Set(posts.map(p => p.subreddit))].length}</span>
+          <span class="stat-lbl">Subreddits</span>
+        </div>
+        <div class="divider"></div>
+        <div class="stat">
+          <span class="stat-val">${fmtNum(posts.reduce((a,p) => a + (p.score||0), 0))}</span>
+          <span class="stat-lbl">Total upvotes</span>
+        </div>
+        <div class="divider"></div>
+        <div class="stat">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span class="badge ${analysis.overall_sentiment}">${sentimentEmoji(analysis.overall_sentiment)} ${analysis.overall_sentiment}</span>
+            <div class="sentiment-bar-wrap">
+              <div class="sentiment-bar">
+                <div class="sentiment-fill ${isNeg ? 'neg' : ''}" style="width:${pct}%"></div>
+              </div>
+              <span style="font-size:12px;color:var(--muted)">${isNeg ? '-' : '+'}${pct}%</span>
+            </div>
+          </div>
+          <span class="stat-lbl">Overall sentiment</span>
+        </div>
+      </div>
+
+      <!-- AI Analysis -->
+      <div class="card">
+        <div class="card-header">
+          <h2>AI Analysis</h2>
+          <span class="chip">Claude claude-sonnet-4-6</span>
+        </div>
+        <div class="card-body">
+          <p class="summary-text">${escHtml(analysis.summary)}</p>
+          <p class="section-label">Key insights</p>
+          <ul class="insights-list">
+            ${(analysis.key_insights || []).map(i => `<li>${escHtml(i)}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
+
+      <!-- Themes -->
+      ${analysis.themes && analysis.themes.length ? `
+      <div>
+        <p class="section-label">Recurring themes</p>
+        <div class="themes-grid">
+          ${analysis.themes.map(t => `
+            <div class="theme-card">
+              <div class="theme-header">
+                <span class="theme-name">${escHtml(t.name)}</span>
+                <span class="freq-dot ${t.frequency}" title="${t.frequency} frequency"></span>
+              </div>
+              <span class="badge ${t.sentiment}" style="align-self:flex-start;font-size:11px;">${sentimentEmoji(t.sentiment)} ${t.sentiment}</span>
+              <p class="theme-desc">${escHtml(t.description)}</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
+
+      <!-- Posts -->
+      <div>
+        <p class="section-label">Posts (${posts.length})</p>
+        <div class="posts-list" id="posts-list">
+          ${posts.map((p, i) => renderPost(p, i, analysis.post_sentiments)).join('')}
+        </div>
+      </div>
+
+    </div>`;
+
+  // Expand/collapse
+  document.querySelectorAll('.post-main').forEach(el => {
+    el.addEventListener('click', () => el.closest('.post-card').classList.toggle('expanded'));
+  });
+}
+
+function renderPost(post, idx, sentiments) {
+  const ps = (sentiments || []).find(s => s.post_index === idx + 1);
+  const sent = ps ? ps.sentiment : 'neutral';
+  const age  = timeAgo(post.created_utc);
+  const hasDetail = post.selftext || (post.top_comments && post.top_comments.length);
+
+  return `
+    <div class="post-card" id="post-${idx}">
+      <div class="post-main">
+        <div class="post-score">
+          <span class="score-num">${fmtNum(post.score)}</span>
+          <span class="score-lbl">pts</span>
+        </div>
+        <div class="post-body">
+          <div class="post-title">${escHtml(post.title)}</div>
+          <div class="post-meta">
+            <span>r/${escHtml(post.subreddit)}</span>
+            <span>u/${escHtml(post.author)}</span>
+            <span>${age}</span>
+            <span>${fmtNum(post.num_comments)} comments</span>
+            <a href="${escHtml(post.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">open ↗</a>
+          </div>
+        </div>
+        <div class="post-right">
+          <span class="badge ${sent}" style="font-size:11px;">${sentimentEmoji(sent)} ${sent}</span>
+          ${hasDetail ? '<span class="chevron">▾</span>' : ''}
+        </div>
+      </div>
+      ${hasDetail ? `
+      <div class="post-detail">
+        ${post.selftext ? `<p class="post-selftext">${escHtml(post.selftext)}</p>` : ''}
+        ${post.top_comments && post.top_comments.length ? `
+          <div class="comments-section">
+            <h4>Top comments</h4>
+            ${post.top_comments.map(c => `<div class="comment">${escHtml(c)}</div>`).join('')}
+          </div>
+        ` : ''}
+      </div>` : ''}
+    </div>`;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtNum(n) {
+  if (n == null) return '0';
+  if (Math.abs(n) >= 1000) return (n / 1000).toFixed(1) + 'k';
+  return String(n);
+}
+
+function sentimentEmoji(s) {
+  return { positive: '😊', negative: '😞', neutral: '😐', mixed: '🤔' }[s] || '😐';
+}
+
+function timeAgo(utc) {
+  if (!utc) return '';
+  const diff = Date.now() / 1000 - utc;
+  if (diff < 3600)   return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400)  return `${Math.floor(diff/3600)}h ago`;
+  if (diff < 2592000) return `${Math.floor(diff/86400)}d ago`;
+  if (diff < 31536000) return `${Math.floor(diff/2592000)}mo ago`;
+  return `${Math.floor(diff/31536000)}y ago`;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderTags();
+</script>
+</body>
+</html>

@@ -1,7 +1,13 @@
+import os
 import anthropic
 from typing import Dict, List
 
-_client = anthropic.Anthropic()
+
+def _get_client() -> anthropic.Anthropic:
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY environment variable is not set")
+    return anthropic.Anthropic(api_key=api_key)
 
 _SYSTEM_PROMPT = """You are a senior financial services industry analyst covering the wealth management and financial advisory ecosystem. You track wirehouses (Merrill Lynch, Morgan Stanley, Wells Fargo Advisors, UBS), independent RIAs, broker-dealers, and the full spectrum of advisor-facing technology and growth programs.
 
@@ -166,7 +172,7 @@ def analyze_content(articles: list, query: str, themes: List[str]) -> Dict:
             lines.append(f"Summary: {a['summary']}")
         lines.append("")
 
-    response = _client.messages.create(
+    response = _get_client().messages.create(
         model="claude-sonnet-4-6",
         max_tokens=3000,
         system=_SYSTEM_PROMPT,

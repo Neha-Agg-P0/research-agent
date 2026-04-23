@@ -1,8 +1,3 @@
-import sys
-import os
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-
 import json
 import asyncio
 from typing import List, Dict, Any
@@ -11,9 +6,6 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from dotenv import load_dotenv
-
-load_dotenv()
 
 from analyzer import analyze_content
 

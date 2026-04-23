@@ -9,34 +9,40 @@ def _get_client() -> anthropic.Anthropic:
         raise RuntimeError("ANTHROPIC_API_KEY environment variable is not set")
     return anthropic.Anthropic(api_key=api_key)
 
-_SYSTEM_PROMPT = """You are a senior financial services industry analyst covering the wealth management and financial advisory ecosystem. You track wirehouses (Merrill Lynch, Morgan Stanley, Wells Fargo Advisors, UBS), independent RIAs, broker-dealers, and the full spectrum of advisor-facing technology and growth programs.
 
-You analyze content through four lenses:
+_SYSTEM_PROMPT = """You are a senior financial services industry analyst. You give direct, confident, opinionated answers — not summaries of what sources say.
 
-INDUSTRY & FIRMS — firm strategy, M&A/consolidation, channel dynamics (wirehouse vs RIA vs BD), regulatory changes, competitive moves, market share shifts.
+Your job:
+1. Answer the query directly. Take a position. Make concrete claims.
+2. Back every claim with specific article indices from the provided content.
+3. Write as if presenting conclusions to a managing partner, not writing a report.
 
-ADVISOR TECHNOLOGY — fintech and wealthtech products built for advisors: CRM, financial planning software, portfolio management, compliance, AI tools (e.g. Zocks AI, Jump AI, Finny), client engagement, document automation. Reference Kitces Technology Map categories when relevant.
+You cover: wirehouses (Merrill Lynch, Morgan Stanley, Wells Fargo Advisors, UBS), independent RIAs, broker-dealers, and advisor-facing technology and growth programs.
 
-TALENT & HIRING — advisor movement and recruiting, breakaway trends, headcount signals, firm growth or contraction, compensation trends.
+Four analysis lenses (only use those relevant to the query):
+- INDUSTRY & FIRMS: firm strategy, M&A, channel dynamics, regulatory moves
+- ADVISOR TECHNOLOGY: fintech/wealthtech tools — CRM, planning, portfolio, compliance, AI (Zocks AI, Jump AI, Finny, etc.), Kitces Technology Map categories
+- TALENT & HIRING: advisor movement, breakaway, recruiting, headcount signals
+- GROWTH & PROGRAMS: practice growth, client acquisition, coaching, benchmarks — flag Cerulli, Schwab RIA Benchmarking, Fidelity, InvestmentNews data as high-signal
 
-GROWTH & PROGRAMS — advisor practice growth: client acquisition tools, marketing programs, coaching, succession planning, custodian and broker-dealer support programs, XYPN and FPA resources. Flag Cerulli, Schwab RIA Benchmarking, Fidelity, and InvestmentNews benchmark data explicitly — these carry high evidential weight.
+Hard rules:
+- Every claim in direct_answer must cite article indices. No claim without evidence.
+- Be specific: name firms, cite numbers, reference dates when present.
+- Prefer concrete over hedged. "AUM growth rate is the #1 tracked KPI" beats "some advisors track AUM."
+- If benchmark data exists (Cerulli, Schwab, etc.), surface it — it is authoritative.
+- theme_analysis: headline only + max 3 bullet insights per theme. No prose paragraphs."""
 
-Rules:
-- Be specific. Cite source names and numbers when present.
-- Flag Cerulli and other benchmark data prominently.
-- Only analyze themes present in the active theme list.
-- If a theme has no relevant content, omit it from theme_analysis.
-- Surface concrete signal, not general observations."""
 
 _TOOL = {
     "name": "save_analysis",
-    "description": "Save structured FA industry intelligence",
+    "description": "Save structured FA industry intelligence with direct cited answers",
     "input_schema": {
         "type": "object",
         "required": [
-            "overall_sentiment", "sentiment_score", "executive_summary",
-            "theme_analysis", "companies_and_products",
-            "benchmark_data", "hiring_signal", "top_articles",
+            "overall_sentiment", "sentiment_score",
+            "direct_answer", "theme_analysis",
+            "companies_and_products", "benchmark_data",
+            "hiring_signal", "top_articles",
         ],
         "properties": {
             "overall_sentiment": {
@@ -47,13 +53,28 @@ _TOOL = {
                 "type": "number",
                 "description": "-1.0 (very negative) to 1.0 (very positive)",
             },
-            "executive_summary": {
-                "type": "string",
-                "description": "2-3 sentence intelligence brief — what does this query reveal right now?",
+            "direct_answer": {
+                "type": "array",
+                "description": "3-7 direct, opinionated answers to the query. Each claim is a confident statement backed by specific article indices. This is the primary output.",
+                "items": {
+                    "type": "object",
+                    "required": ["claim", "evidence_indices"],
+                    "properties": {
+                        "claim": {
+                            "type": "string",
+                            "description": "A direct, confident claim that answers the query. Cite numbers/firms/sources inline where possible.",
+                        },
+                        "evidence_indices": {
+                            "type": "array",
+                            "items": {"type": "integer"},
+                            "description": "1-indexed article numbers that support this claim",
+                        },
+                    },
+                },
             },
             "theme_analysis": {
                 "type": "array",
-                "description": "One entry per active theme that has relevant content",
+                "description": "One compact entry per relevant theme",
                 "items": {
                     "type": "object",
                     "required": ["theme", "headline", "insights", "sentiment"],
@@ -64,12 +85,12 @@ _TOOL = {
                         },
                         "headline": {
                             "type": "string",
-                            "description": "One sharp sentence — the single most important finding for this theme",
+                            "description": "Single most important finding for this theme — one sentence, direct",
                         },
                         "insights": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "3-5 specific findings; cite source names and numbers where available",
+                            "description": "Max 3 bullet points. Specific, named, numbered where possible.",
                         },
                         "sentiment": {
                             "type": "string",
@@ -80,7 +101,7 @@ _TOOL = {
             },
             "companies_and_products": {
                 "type": "array",
-                "description": "All notable firms, products, and startups mentioned",
+                "description": "Notable firms, products, startups mentioned",
                 "items": {
                     "type": "object",
                     "required": ["name", "type", "context", "sentiment"],
@@ -96,7 +117,7 @@ _TOOL = {
                         },
                         "context": {
                             "type": "string",
-                            "description": "What is happening with this company — be specific",
+                            "description": "What is happening — be specific, one sentence",
                         },
                         "sentiment": {
                             "type": "string",
@@ -107,13 +128,13 @@ _TOOL = {
             },
             "benchmark_data": {
                 "type": "array",
-                "description": "Benchmark stats, market-size figures, or research data points (Cerulli, Schwab, Fidelity, etc.)",
+                "description": "Benchmark stats and research data points (Cerulli, Schwab, Fidelity, etc.)",
                 "items": {
                     "type": "object",
                     "required": ["source", "stat", "significance"],
                     "properties": {
                         "source":       {"type": "string"},
-                        "stat":         {"type": "string", "description": "The specific data point"},
+                        "stat":         {"type": "string"},
                         "significance": {"type": "string"},
                     },
                 },
@@ -126,16 +147,13 @@ _TOOL = {
                         "type": "string",
                         "enum": ["growing", "stable", "contracting", "unknown"],
                     },
-                    "hot_roles": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
-                    "notes": {"type": "string"},
+                    "hot_roles": {"type": "array", "items": {"type": "string"}},
+                    "notes":     {"type": "string"},
                 },
             },
             "top_articles": {
                 "type": "array",
-                "description": "6-8 must-read articles — signal not noise",
+                "description": "6-8 most relevant articles for this specific query",
                 "items": {
                     "type": "object",
                     "required": ["article_index", "title", "source", "theme", "why_it_matters"],
@@ -146,7 +164,7 @@ _TOOL = {
                         "theme":          {"type": "string"},
                         "why_it_matters": {
                             "type": "string",
-                            "description": "One sentence: why should a senior FA industry professional read this?",
+                            "description": "One sentence specific to this query — not generic",
                         },
                     },
                 },
@@ -174,7 +192,7 @@ def analyze_content(articles: list, query: str, themes: List[str]) -> Dict:
 
     response = _get_client().messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=3000,
+        max_tokens=4000,
         system=_SYSTEM_PROMPT,
         tools=[_TOOL],
         tool_choice={"type": "any"},
@@ -187,7 +205,7 @@ def analyze_content(articles: list, query: str, themes: List[str]) -> Dict:
 
     return {
         "overall_sentiment": "neutral", "sentiment_score": 0,
-        "executive_summary": "Analysis unavailable.",
+        "direct_answer": [],
         "theme_analysis": [], "companies_and_products": [],
         "benchmark_data": [],
         "hiring_signal": {"trend": "unknown", "notes": ""},

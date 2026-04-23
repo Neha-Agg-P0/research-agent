@@ -22,12 +22,19 @@ def _is_fa_relevant(article: dict) -> bool:
 
 
 def _load_context() -> str:
-    try:
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "context.md")
-        with open(path, "r") as f:
-            return f.read()
-    except Exception:
-        return ""
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "context.md"),
+        os.path.join(os.getcwd(), "context.md"),
+        "/var/task/context.md",   # Vercel serverless runtime path
+        "context.md",
+    ]
+    for path in candidates:
+        try:
+            with open(path, "r") as f:
+                return f.read()
+        except Exception:
+            continue
+    return ""
 
 
 def _get_client() -> anthropic.Anthropic:

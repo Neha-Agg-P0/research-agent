@@ -3,553 +3,403 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reddit Research Agent</title>
+  <title>FA Research Agent</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --orange: #FF4500;
-      --orange-light: #fff3ef;
-      --bg: #F6F7F8;
-      --surface: #ffffff;
-      --border: #EDEFF1;
-      --text: #1c1c1c;
-      --muted: #878A8C;
-      --positive: #2e7d32;
-      --positive-bg: #e8f5e9;
-      --negative: #c62828;
-      --negative-bg: #ffebee;
-      --neutral-bg: #f5f5f5;
-      --mixed: #e65100;
-      --mixed-bg: #fff3e0;
-      --radius: 10px;
-      --shadow: 0 1px 4px rgba(0,0,0,.08);
+      --blue:       #0057FF;
+      --blue-light: #EEF3FF;
+      --bg:         #F4F5F7;
+      --surface:    #ffffff;
+      --border:     #E4E6EA;
+      --text:       #111827;
+      --muted:      #6B7280;
+      --pos:        #15803d; --pos-bg: #f0fdf4;
+      --neg:        #b91c1c; --neg-bg: #fef2f2;
+      --neu-bg:     #f9fafb;
+      --mix:        #c2410c; --mix-bg: #fff7ed;
+      --radius:     10px;
+      --shadow:     0 1px 4px rgba(0,0,0,.07);
+
+      --c-industry:   #7c3aed;
+      --c-technology: #0369a1;
+      --c-talent:     #b45309;
+      --c-growth:     #15803d;
     }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+           background: var(--bg); color: var(--text); min-height: 100vh; }
 
     /* ── Header ── */
     header {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 0 24px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      height: 52px;
-      position: sticky;
-      top: 0;
-      z-index: 10;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 24px; display: flex; align-items: center; gap: 14px;
+      height: 54px; position: sticky; top: 0; z-index: 10;
     }
     .logo {
-      width: 28px; height: 28px;
-      background: var(--orange);
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
+      width: 30px; height: 30px; background: var(--blue); border-radius: 7px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
-    .logo svg { fill: white; width: 18px; height: 18px; }
-    header h1 { font-size: 16px; font-weight: 700; color: var(--text); }
-    header span { font-size: 12px; color: var(--muted); margin-left: 4px; }
+    .logo svg { fill: white; width: 17px; height: 17px; }
+    .header-text h1 { font-size: 15px; font-weight: 700; }
+    .header-text span { font-size: 11px; color: var(--muted); }
 
-    /* ── Controls panel ── */
+    /* ── Controls ── */
     .controls {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 16px 24px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
     }
     .controls-inner {
-      max-width: 1100px;
-      margin: 0 auto;
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      align-items: flex-end;
+      max-width: 1100px; margin: 0 auto;
+      display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
     }
     .field { display: flex; flex-direction: column; gap: 5px; }
-    .field label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    label.field-label {
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .5px;
+    }
 
-    .query-field { flex: 1 1 260px; }
+    .query-field { flex: 1 1 300px; }
     input[type="text"] {
-      height: 38px;
-      border: 1.5px solid var(--border);
-      border-radius: 6px;
-      padding: 0 12px;
-      font-size: 14px;
-      color: var(--text);
-      background: var(--bg);
-      outline: none;
-      transition: border-color .15s;
-      width: 100%;
+      height: 38px; border: 1.5px solid var(--border); border-radius: 6px;
+      padding: 0 12px; font-size: 14px; background: var(--bg); outline: none;
+      transition: border-color .15s; width: 100%;
     }
-    input[type="text"]:focus { border-color: var(--orange); background: #fff; }
+    input[type="text"]:focus { border-color: var(--blue); background: #fff; }
 
-    /* Subreddit tag input */
-    .subs-field { flex: 1 1 320px; }
-    .tag-box {
-      min-height: 38px;
-      border: 1.5px solid var(--border);
-      border-radius: 6px;
-      background: var(--bg);
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 5px;
-      padding: 4px 8px;
-      cursor: text;
-      transition: border-color .15s;
+    /* Theme toggles */
+    .themes-field { flex: 0 0 auto; }
+    .theme-toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+    .theme-toggle {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 20px; cursor: pointer;
+      border: 1.5px solid var(--border); background: var(--bg);
+      font-size: 12px; font-weight: 600; color: var(--muted);
+      transition: all .15s; user-select: none;
     }
-    .tag-box:focus-within { border-color: var(--orange); background: #fff; }
-    .tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      background: var(--orange-light);
-      color: var(--orange);
-      border-radius: 4px;
-      padding: 2px 7px;
-      font-size: 12px;
-      font-weight: 600;
-      white-space: nowrap;
+    .theme-toggle input { display: none; }
+    .theme-toggle.checked { border-color: currentColor; background: var(--surface); }
+    .theme-toggle[data-theme="industry"]  { --tc: var(--c-industry); }
+    .theme-toggle[data-theme="technology"]{ --tc: var(--c-technology); }
+    .theme-toggle[data-theme="talent"]    { --tc: var(--c-talent); }
+    .theme-toggle[data-theme="growth"]    { --tc: var(--c-growth); }
+    .theme-toggle.checked { color: var(--tc); border-color: var(--tc);
+                            background: color-mix(in srgb, var(--tc) 8%, white); }
+    .toggle-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0; opacity: 0;
     }
-    .tag button {
-      background: none; border: none; cursor: pointer;
-      color: var(--orange); font-size: 14px; line-height: 1;
-      padding: 0; margin-left: 1px;
-      display: flex; align-items: center;
-    }
-    .tag button:hover { color: #c43900; }
-    #sub-input {
-      border: none; outline: none; background: transparent;
-      font-size: 13px; min-width: 100px; flex: 1;
-      padding: 2px 2px;
-    }
-
-    /* Limit field */
-    .limit-field { flex: 0 0 auto; }
-    .limit-row { display: flex; align-items: center; gap: 8px; }
-    input[type="range"] { width: 90px; accent-color: var(--orange); }
-    .limit-val { font-size: 13px; font-weight: 600; color: var(--text); min-width: 24px; }
+    .theme-toggle.checked .toggle-dot { opacity: 1; }
 
     /* Run button */
     #run-btn {
-      height: 38px;
-      padding: 0 20px;
-      background: var(--orange);
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      transition: background .15s, transform .1s;
-      flex-shrink: 0;
-      align-self: flex-end;
+      height: 38px; padding: 0 20px; background: var(--blue); color: white;
+      border: none; border-radius: 6px; font-size: 14px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; gap: 7px;
+      transition: background .15s; flex-shrink: 0; align-self: flex-end;
     }
-    #run-btn:hover:not(:disabled) { background: #e03d00; }
-    #run-btn:active:not(:disabled) { transform: scale(.97); }
-    #run-btn:disabled { background: #ccc; cursor: not-allowed; }
-    #run-btn .spinner {
-      width: 14px; height: 14px;
-      border: 2px solid rgba(255,255,255,.4);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin .6s linear infinite;
-      display: none;
+    #run-btn:hover:not(:disabled) { background: #0046d5; }
+    #run-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+    .spinner {
+      width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.35);
+      border-top-color: white; border-radius: 50%;
+      animation: spin .6s linear infinite; display: none;
     }
     #run-btn.loading .spinner { display: block; }
     #run-btn.loading .btn-text { display: none; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Main content ── */
-    main {
-      max-width: 1100px;
-      margin: 28px auto;
-      padding: 0 24px 60px;
-    }
+    /* ── Main ── */
+    main { max-width: 1100px; margin: 28px auto; padding: 0 24px 80px; }
 
-    /* Empty / loading / error state */
     .state-box {
-      background: var(--surface);
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      padding: 60px 24px;
-      text-align: center;
-      color: var(--muted);
+      background: var(--surface); border-radius: var(--radius);
+      border: 1px solid var(--border); padding: 60px 24px;
+      text-align: center; color: var(--muted);
     }
-    .state-box .icon { font-size: 40px; margin-bottom: 12px; }
+    .state-box .icon { font-size: 38px; margin-bottom: 12px; }
     .state-box h3 { font-size: 16px; color: var(--text); margin-bottom: 6px; }
-    .state-box p { font-size: 14px; }
+    .state-box p  { font-size: 14px; }
 
+    /* Progress steps */
     .progress-steps {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-top: 20px;
-      max-width: 320px;
-      margin-left: auto;
-      margin-right: auto;
-      text-align: left;
+      display: flex; flex-direction: column; gap: 10px;
+      margin: 20px auto 0; max-width: 340px; text-align: left;
     }
-    .step {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13px;
-      color: var(--muted);
-    }
-    .step.active { color: var(--orange); font-weight: 600; }
-    .step.done { color: var(--positive); }
-    .step-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: currentColor;
-      flex-shrink: 0;
-    }
-    .step.active .step-dot {
-      animation: pulse 1s ease-in-out infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .step { display: flex; align-items: center; gap: 10px;
+            font-size: 13px; color: var(--muted); }
+    .step.active { color: var(--blue); font-weight: 600; }
+    .step.done   { color: var(--pos); }
+    .step-dot    { width: 8px; height: 8px; border-radius: 50%;
+                   background: currentColor; flex-shrink: 0; }
+    .step.active .step-dot { animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
 
-    /* Results */
+    /* ── Results layout ── */
     .results-grid { display: flex; flex-direction: column; gap: 20px; }
 
     /* Overview bar */
     .overview {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px 20px;
-      display: flex;
-      gap: 32px;
-      flex-wrap: wrap;
-      align-items: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 20px;
+      display: flex; gap: 28px; flex-wrap: wrap; align-items: center;
     }
     .stat { display: flex; flex-direction: column; gap: 2px; }
-    .stat-val { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1; }
-    .stat-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-    .divider { width: 1px; background: var(--border); height: 36px; }
+    .stat-val { font-size: 22px; font-weight: 800; line-height: 1; }
+    .stat-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
+    .vdivider { width: 1px; background: var(--border); height: 34px; }
 
-    /* Sentiment badge */
+    /* Badges */
     .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: capitalize;
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 20px;
+      font-size: 11px; font-weight: 700; text-transform: capitalize;
     }
-    .badge.positive { background: var(--positive-bg); color: var(--positive); }
-    .badge.negative { background: var(--negative-bg); color: var(--negative); }
-    .badge.neutral { background: var(--neutral-bg); color: #555; }
-    .badge.mixed { background: var(--mixed-bg); color: var(--mixed); }
+    .badge.positive { background: var(--pos-bg); color: var(--pos); }
+    .badge.negative { background: var(--neg-bg); color: var(--neg); }
+    .badge.neutral  { background: var(--neu-bg); color: #555; }
+    .badge.mixed    { background: var(--mix-bg); color: var(--mix); }
 
-    /* Sentiment bar */
-    .sentiment-bar-wrap { display: flex; align-items: center; gap: 10px; }
-    .sentiment-bar {
-      height: 6px;
-      border-radius: 3px;
-      background: var(--border);
-      width: 120px;
-      overflow: hidden;
-    }
-    .sentiment-fill {
-      height: 100%;
-      border-radius: 3px;
-      background: var(--positive);
-      transition: width .4s;
-    }
-    .sentiment-fill.neg { background: var(--negative); }
-
-    /* AI Analysis card */
+    /* Cards */
     .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
     }
     .card-header {
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      padding: 12px 18px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
     }
-    .card-header h2 { font-size: 14px; font-weight: 700; }
-    .card-header .chip {
-      font-size: 10px;
-      background: #f0f0f0;
-      color: var(--muted);
-      padding: 2px 7px;
-      border-radius: 10px;
-      font-weight: 600;
+    .card-header h2 { font-size: 13px; font-weight: 700; }
+    .chip {
+      font-size: 10px; background: #f0f0f0; color: var(--muted);
+      padding: 2px 7px; border-radius: 10px; font-weight: 600;
     }
-    .card-body { padding: 18px 20px; }
+    .card-body { padding: 16px 18px; }
 
-    .summary-text {
-      font-size: 14px;
-      line-height: 1.65;
-      color: var(--text);
-      margin-bottom: 16px;
-    }
-
-    .insights-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
+    /* Summary */
+    .summary-text { font-size: 14px; line-height: 1.65; margin-bottom: 14px; }
+    .insights-list { list-style: none; display: flex; flex-direction: column; gap: 7px; }
     .insights-list li {
-      display: flex;
-      gap: 9px;
-      font-size: 13.5px;
-      line-height: 1.5;
-      color: var(--text);
+      display: flex; gap: 8px; font-size: 13px; line-height: 1.5;
     }
     .insights-list li::before {
-      content: "→";
-      color: var(--orange);
-      font-weight: 700;
-      flex-shrink: 0;
-      margin-top: 1px;
+      content: "→"; color: var(--blue); font-weight: 700; flex-shrink: 0;
     }
 
-    /* Themes */
-    .themes-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 12px;
+    /* Section label */
+    .section-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .6px; color: var(--muted); margin-bottom: 10px;
+    }
+
+    /* Theme analysis grid */
+    .themes-analysis-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;
     }
     .theme-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 14px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      border-radius: var(--radius); border: 1px solid var(--border);
+      background: var(--surface); padding: 14px 16px;
+      display: flex; flex-direction: column; gap: 10px;
     }
-    .theme-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-    .theme-name { font-size: 13px; font-weight: 700; color: var(--text); }
-    .freq-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      flex-shrink: 0; margin-top: 3px;
+    .theme-card-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
     }
-    .freq-dot.high { background: var(--orange); }
-    .freq-dot.medium { background: #FFB300; }
-    .freq-dot.low { background: var(--muted); }
-    .theme-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .theme-pill {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; padding: 3px 8px; border-radius: 10px;
+    }
+    .theme-pill.industry   { background: #ede9fe; color: var(--c-industry); }
+    .theme-pill.technology { background: #e0f2fe; color: var(--c-technology); }
+    .theme-pill.talent     { background: #fef3c7; color: var(--c-talent); }
+    .theme-pill.growth     { background: #dcfce7; color: var(--c-growth); }
+    .theme-headline { font-size: 13px; font-weight: 600; line-height: 1.4; }
+    .theme-insights { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+    .theme-insights li { font-size: 12px; color: #374151; line-height: 1.5;
+                         display: flex; gap: 6px; }
+    .theme-insights li::before { content: "·"; color: var(--muted); flex-shrink: 0; }
 
-    /* Posts */
-    .posts-list { display: flex; flex-direction: column; gap: 10px; }
-    .post-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
+    /* Companies grid */
+    .companies-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;
     }
-    .post-main {
-      padding: 14px 16px;
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      cursor: pointer;
-      user-select: none;
+    .company-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 6px;
     }
-    .post-main:hover { background: #fafafa; }
-    .post-score {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 2px;
-      min-width: 40px;
-      flex-shrink: 0;
+    .company-top { display: flex; align-items: flex-start;
+                   justify-content: space-between; gap: 6px; }
+    .company-name { font-size: 13px; font-weight: 700; }
+    .company-type {
+      font-size: 10px; color: var(--muted); background: var(--bg);
+      padding: 2px 6px; border-radius: 6px; white-space: nowrap; flex-shrink: 0;
     }
-    .score-num { font-size: 13px; font-weight: 700; color: var(--text); }
-    .score-lbl { font-size: 9px; color: var(--muted); text-transform: uppercase; }
-    .post-body { flex: 1; min-width: 0; }
-    .post-title {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 5px;
-      line-height: 1.4;
-    }
-    .post-meta {
-      font-size: 11px;
-      color: var(--muted);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-    .post-meta a { color: var(--orange); text-decoration: none; }
-    .post-meta a:hover { text-decoration: underline; }
-    .post-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
-    .chevron { color: var(--muted); font-size: 14px; transition: transform .2s; }
-    .post-card.expanded .chevron { transform: rotate(180deg); }
+    .company-cat { font-size: 11px; color: var(--blue); font-weight: 600; }
+    .company-context { font-size: 12px; color: #4b5563; line-height: 1.5; }
 
-    .post-detail {
-      padding: 0 16px 14px 16px;
-      border-top: 1px solid var(--border);
-      display: none;
+    /* Benchmark data */
+    .benchmarks-list { display: flex; flex-direction: column; gap: 10px; }
+    .benchmark-item {
+      background: #fffbeb; border: 1px solid #fde68a;
+      border-radius: 8px; padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 4px;
     }
-    .post-card.expanded .post-detail { display: block; }
-    .post-selftext {
-      font-size: 13px;
-      color: var(--text);
-      line-height: 1.6;
-      margin-top: 12px;
-      white-space: pre-wrap;
+    .benchmark-source { font-size: 10px; font-weight: 700; color: #92400e;
+                        text-transform: uppercase; letter-spacing: .4px; }
+    .benchmark-stat  { font-size: 14px; font-weight: 600; color: #1c1917; }
+    .benchmark-sig   { font-size: 12px; color: #78716c; }
+
+    /* Hiring signal */
+    .hiring-card { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+    .hiring-trend {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      min-width: 80px; flex-shrink: 0;
     }
-    .comments-section { margin-top: 12px; }
-    .comments-section h4 { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
-    .comment {
-      border-left: 2px solid var(--border);
-      padding: 6px 10px;
-      font-size: 12.5px;
-      color: #444;
-      line-height: 1.5;
-      margin-bottom: 6px;
+    .trend-icon { font-size: 28px; }
+    .trend-label { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                   letter-spacing: .4px; }
+    .trend-label.growing    { color: var(--pos); }
+    .trend-label.contracting{ color: var(--neg); }
+    .trend-label.stable     { color: var(--muted); }
+    .trend-label.unknown    { color: var(--muted); }
+    .hiring-details { flex: 1; }
+    .hiring-notes { font-size: 13px; color: #374151; line-height: 1.6; margin-bottom: 8px; }
+    .hot-roles { display: flex; flex-wrap: wrap; gap: 6px; }
+    .role-tag {
+      background: #f0fdf4; color: var(--pos); border: 1px solid #bbf7d0;
+      border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600;
     }
 
-    /* Section labels */
-    .section-label {
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: .6px;
-      color: var(--muted);
-      margin-bottom: 10px;
+    /* Top articles */
+    .articles-list { display: flex; flex-direction: column; gap: 8px; }
+    .article-row {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 12px 14px;
+      display: flex; gap: 12px; align-items: flex-start;
     }
+    .article-num {
+      font-size: 12px; font-weight: 700; color: var(--muted);
+      min-width: 20px; flex-shrink: 0; padding-top: 2px;
+    }
+    .article-body { flex: 1; min-width: 0; }
+    .article-title {
+      font-size: 13px; font-weight: 600; line-height: 1.4;
+      margin-bottom: 4px; color: var(--text);
+    }
+    .article-title a { color: inherit; text-decoration: none; }
+    .article-title a:hover { color: var(--blue); }
+    .article-meta { font-size: 11px; color: var(--muted);
+                    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 5px; }
+    .article-why { font-size: 12px; color: #4b5563; line-height: 1.5; }
+
+    /* Source health */
+    .health-summary {
+      font-size: 12px; color: var(--muted); display: flex;
+      align-items: center; gap: 6px; cursor: pointer; user-select: none;
+    }
+    .health-summary:hover { color: var(--text); }
+    .health-list { margin-top: 8px; display: none; flex-direction: column; gap: 4px; }
+    .health-list.open { display: flex; }
+    .health-row {
+      font-size: 11px; display: flex; gap: 8px; align-items: baseline;
+      padding: 4px 8px; background: var(--bg); border-radius: 4px;
+    }
+    .health-source { font-weight: 600; color: var(--text); min-width: 130px; }
+    .health-err    { color: var(--neg); }
+    .health-msg    { color: var(--muted); }
   </style>
 </head>
 <body>
 
 <header>
   <div class="logo">
-    <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#FF4500"/><ellipse cx="10" cy="11" rx="6" ry="4" fill="white"/><circle cx="7.2" cy="9.5" r="1.1" fill="#FF4500"/><circle cx="12.8" cy="9.5" r="1.1" fill="#FF4500"/><circle cx="7.5" cy="11.2" r=".7" fill="#FF4500"/><circle cx="12.5" cy="11.2" r=".7" fill="#FF4500"/><path d="M8.5 13.2 Q10 14.2 11.5 13.2" stroke="#FF4500" stroke-width=".8" fill="none" stroke-linecap="round"/><circle cx="14.8" cy="7" r="1.3" fill="#FF4500"/><line x1="13.7" y1="7.5" x2="12.2" y2="8.5" stroke="#FF4500" stroke-width=".8"/></svg>
+    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
   </div>
-  <h1>Reddit Research Agent</h1>
-  <span>powered by Claude</span>
+  <div class="header-text">
+    <h1>FA Research Agent</h1>
+    <span>Financial Advisory Industry Intelligence · powered by Claude</span>
+  </div>
 </header>
 
 <div class="controls">
   <div class="controls-inner">
+
     <div class="field query-field">
-      <label>Search query</label>
-      <input type="text" id="query-input" placeholder="e.g. best mechanical keyboards under $100" />
+      <label class="field-label">Research query</label>
+      <input type="text" id="query-input"
+             placeholder="e.g. Zocks AI, RIA consolidation, advisor CRM trends, breakaway recruiting…" />
     </div>
 
-    <div class="field subs-field">
-      <label>Subreddits</label>
-      <div class="tag-box" id="tag-box">
-        <input id="sub-input" type="text" placeholder="Add subreddit + Enter" autocomplete="off" autocapitalize="none" />
-      </div>
-    </div>
-
-    <div class="field limit-field">
-      <label>Posts / subreddit</label>
-      <div class="limit-row">
-        <input type="range" id="limit-range" min="5" max="50" value="25" step="5" />
-        <span class="limit-val" id="limit-val">25</span>
+    <div class="field themes-field">
+      <label class="field-label">Themes</label>
+      <div class="theme-toggles" id="theme-toggles">
+        <label class="theme-toggle checked" data-theme="industry">
+          <input type="checkbox" value="industry" checked>
+          <span class="toggle-dot"></span>Industry &amp; Firms
+        </label>
+        <label class="theme-toggle checked" data-theme="technology">
+          <input type="checkbox" value="technology" checked>
+          <span class="toggle-dot"></span>Advisor Technology
+        </label>
+        <label class="theme-toggle checked" data-theme="talent">
+          <input type="checkbox" value="talent" checked>
+          <span class="toggle-dot"></span>Talent &amp; Hiring
+        </label>
+        <label class="theme-toggle checked" data-theme="growth">
+          <input type="checkbox" value="growth" checked>
+          <span class="toggle-dot"></span>Growth &amp; Programs
+        </label>
       </div>
     </div>
 
     <button id="run-btn">
       <div class="spinner"></div>
-      <span class="btn-text">Run Research</span>
+      <span class="btn-text">Analyze</span>
     </button>
+
   </div>
 </div>
 
 <main id="main-content">
   <div class="state-box" id="empty-state">
-    <div class="icon">🔍</div>
-    <h3>Enter a query and subreddits to get started</h3>
-    <p>The agent will fetch posts, analyze themes, and measure community sentiment.</p>
+    <div class="icon">📊</div>
+    <h3>Enter a query to get started</h3>
+    <p>Search for a company, trend, topic, or question about the FA industry.</p>
   </div>
 </main>
 
 <script>
-// ── State ────────────────────────────────────────────────────────────────────
-const state = {
-  subreddits: ['python', 'learnprogramming'],
-  loading: false,
-  step: 0,
-};
+// ── State ─────────────────────────────────────────────────────────────────────
+const state = { loading: false };
 
-// ── DOM refs ─────────────────────────────────────────────────────────────────
-const queryInput = document.getElementById('query-input');
-const subInput   = document.getElementById('sub-input');
-const tagBox     = document.getElementById('tag-box');
-const limitRange = document.getElementById('limit-range');
-const limitVal   = document.getElementById('limit-val');
-const runBtn     = document.getElementById('run-btn');
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const queryInput  = document.getElementById('query-input');
+const runBtn      = document.getElementById('run-btn');
 const mainContent = document.getElementById('main-content');
 
-// ── Subreddit tags ────────────────────────────────────────────────────────────
-function renderTags() {
-  tagBox.querySelectorAll('.tag').forEach(t => t.remove());
-  state.subreddits.forEach(sub => {
-    const tag = document.createElement('span');
-    tag.className = 'tag';
-    tag.innerHTML = `r/${sub} <button aria-label="Remove r/${sub}">×</button>`;
-    tag.querySelector('button').onclick = () => {
-      state.subreddits = state.subreddits.filter(s => s !== sub);
-      renderTags();
-    };
-    tagBox.insertBefore(tag, subInput);
+// ── Theme toggles ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.theme-toggle').forEach(label => {
+  label.addEventListener('click', () => {
+    const cb = label.querySelector('input');
+    cb.checked = !cb.checked;
+    label.classList.toggle('checked', cb.checked);
   });
-}
-
-function addSubreddit(raw) {
-  const val = raw.trim().replace(/^r\//i, '').toLowerCase().replace(/[^a-z0-9_]/g, '');
-  if (!val || state.subreddits.includes(val)) return;
-  state.subreddits.push(val);
-  renderTags();
-}
-
-subInput.addEventListener('keydown', e => {
-  if ((e.key === 'Enter' || e.key === ',') && subInput.value.trim()) {
-    e.preventDefault();
-    addSubreddit(subInput.value);
-    subInput.value = '';
-  }
-  if (e.key === 'Backspace' && !subInput.value && state.subreddits.length) {
-    state.subreddits.pop();
-    renderTags();
-  }
 });
 
-subInput.addEventListener('blur', () => {
-  if (subInput.value.trim()) {
-    addSubreddit(subInput.value);
-    subInput.value = '';
-  }
-});
+function activeThemes() {
+  return [...document.querySelectorAll('.theme-toggle input:checked')].map(cb => cb.value);
+}
 
-tagBox.addEventListener('click', () => subInput.focus());
-
-// ── Limit slider ──────────────────────────────────────────────────────────────
-limitRange.addEventListener('input', () => { limitVal.textContent = limitRange.value; });
-
-// ── Research flow ─────────────────────────────────────────────────────────────
+// ── Research ──────────────────────────────────────────────────────────────────
 runBtn.addEventListener('click', startResearch);
 queryInput.addEventListener('keydown', e => { if (e.key === 'Enter') startResearch(); });
 
 async function startResearch() {
   const query = queryInput.value.trim();
   if (!query) { queryInput.focus(); return; }
-  if (!state.subreddits.length) { subInput.focus(); return; }
+  const themes = activeThemes();
+  if (!themes.length) { alert('Select at least one theme.'); return; }
   if (state.loading) return;
 
   state.loading = true;
@@ -561,7 +411,7 @@ async function startResearch() {
     const resp = await fetch('/api/research', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, subreddits: state.subreddits, limit: parseInt(limitRange.value) }),
+      body: JSON.stringify({ query, themes }),
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({ detail: 'Request failed' }));
@@ -582,14 +432,14 @@ async function startResearch() {
         if (!line.startsWith('data: ')) continue;
         try {
           const evt = JSON.parse(line.slice(6));
-          if (evt.type === 'progress') setStep(evt.step, evt.message);
-          else if (evt.type === 'results') renderResults(evt.posts, evt.analysis);
-          else if (evt.type === 'error') showError(evt.message);
+          if      (evt.type === 'progress') setStep(evt.step, evt.message);
+          else if (evt.type === 'results')  renderResults(evt.articles, evt.analysis, evt.failed_sources || []);
+          else if (evt.type === 'error')    showError(evt.message);
         } catch {}
       }
     }
-  } catch (err) {
-    showError('Error: ' + err.message);
+  } catch (e) {
+    showError('Network error: ' + e.message);
   } finally {
     state.loading = false;
     runBtn.disabled = false;
@@ -597,27 +447,28 @@ async function startResearch() {
   }
 }
 
-// ── UI states ─────────────────────────────────────────────────────────────────
+// ── Loading UI ────────────────────────────────────────────────────────────────
 function showLoading() {
   mainContent.innerHTML = `
     <div class="state-box">
       <div class="icon">⏳</div>
       <h3>Researching…</h3>
       <div class="progress-steps">
-        <div class="step active" id="step-1"><div class="step-dot"></div><span>Connecting to Reddit</span></div>
-        <div class="step" id="step-2"><div class="step-dot"></div><span>Analyzing with Claude</span></div>
+        <div class="step active" id="step-1"><div class="step-dot"></div><span>Searching across sources</span></div>
+        <div class="step"        id="step-2"><div class="step-dot"></div><span>Analyzing with Claude</span></div>
       </div>
     </div>`;
 }
 
-function setStep(step, message) {
-  const el1 = document.getElementById('step-1');
-  const el2 = document.getElementById('step-2');
-  if (!el1) return;
-  if (step === 1) { el1.classList.add('active'); el1.querySelector('span').textContent = message; }
+function setStep(step, msg) {
+  const s1 = document.getElementById('step-1');
+  const s2 = document.getElementById('step-2');
+  if (!s1) return;
+  if (step === 1) { s1.querySelector('span').textContent = msg; }
   if (step === 2) {
-    el1.classList.remove('active'); el1.classList.add('done');
-    el2.classList.add('active'); el2.querySelector('span').textContent = message;
+    s1.classList.replace('active', 'done');
+    s2.classList.add('active');
+    s2.querySelector('span').textContent = msg;
   }
 }
 
@@ -626,167 +477,188 @@ function showError(msg) {
     <div class="state-box">
       <div class="icon">⚠️</div>
       <h3>Something went wrong</h3>
-      <p>${escHtml(msg)}</p>
+      <p>${esc(msg)}</p>
     </div>`;
 }
 
 // ── Render results ────────────────────────────────────────────────────────────
-function renderResults(posts, analysis) {
-  const score = analysis.sentiment_score ?? 0;
-  const pct   = Math.round(Math.abs(score) * 100);
-  const isNeg = score < 0;
+const THEME_LABELS = { industry:'Industry & Firms', technology:'Advisor Technology',
+                       talent:'Talent & Hiring', growth:'Growth & Programs' };
+const THEME_ICONS  = { industry:'🏛', technology:'💡', talent:'👥', growth:'📈' };
+const TREND_ICON   = { growing:'📈', stable:'➡️', contracting:'📉', unknown:'❓' };
 
-  mainContent.innerHTML = `
-    <div class="results-grid">
+function renderResults(articles, a, failed) {
+  const score  = a.sentiment_score ?? 0;
+  const pct    = Math.round(Math.abs(score) * 100);
+  const sources = [...new Set(articles.map(x => x.source))].length;
 
-      <!-- Overview -->
-      <div class="overview">
-        <div class="stat">
-          <span class="stat-val">${posts.length}</span>
-          <span class="stat-lbl">Posts found</span>
-        </div>
-        <div class="divider"></div>
-        <div class="stat">
-          <span class="stat-val">${[...new Set(posts.map(p => p.subreddit))].length}</span>
-          <span class="stat-lbl">Subreddits</span>
-        </div>
-        <div class="divider"></div>
-        <div class="stat">
-          <span class="stat-val">${fmtNum(posts.reduce((a,p) => a + (p.score||0), 0))}</span>
-          <span class="stat-lbl">Total upvotes</span>
-        </div>
-        <div class="divider"></div>
-        <div class="stat">
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <span class="badge ${analysis.overall_sentiment}">${sentimentEmoji(analysis.overall_sentiment)} ${analysis.overall_sentiment}</span>
-            <div class="sentiment-bar-wrap">
-              <div class="sentiment-bar">
-                <div class="sentiment-fill ${isNeg ? 'neg' : ''}" style="width:${pct}%"></div>
-              </div>
-              <span style="font-size:12px;color:var(--muted)">${isNeg ? '-' : '+'}${pct}%</span>
-            </div>
-          </div>
-          <span class="stat-lbl">Overall sentiment</span>
-        </div>
+  mainContent.innerHTML = `<div class="results-grid">
+
+    <!-- Overview -->
+    <div class="overview">
+      <div class="stat">
+        <span class="stat-val">${articles.length}</span>
+        <span class="stat-lbl">Articles</span>
       </div>
-
-      <!-- AI Analysis -->
-      <div class="card">
-        <div class="card-header">
-          <h2>AI Analysis</h2>
-          <span class="chip">Claude claude-sonnet-4-6</span>
-        </div>
-        <div class="card-body">
-          <p class="summary-text">${escHtml(analysis.summary)}</p>
-          <p class="section-label">Key insights</p>
-          <ul class="insights-list">
-            ${(analysis.key_insights || []).map(i => `<li>${escHtml(i)}</li>`).join('')}
-          </ul>
-        </div>
+      <div class="vdivider"></div>
+      <div class="stat">
+        <span class="stat-val">${sources}</span>
+        <span class="stat-lbl">Sources</span>
       </div>
-
-      <!-- Themes -->
-      ${analysis.themes && analysis.themes.length ? `
-      <div>
-        <p class="section-label">Recurring themes</p>
-        <div class="themes-grid">
-          ${analysis.themes.map(t => `
-            <div class="theme-card">
-              <div class="theme-header">
-                <span class="theme-name">${escHtml(t.name)}</span>
-                <span class="freq-dot ${t.frequency}" title="${t.frequency} frequency"></span>
-              </div>
-              <span class="badge ${t.sentiment}" style="align-self:flex-start;font-size:11px;">${sentimentEmoji(t.sentiment)} ${t.sentiment}</span>
-              <p class="theme-desc">${escHtml(t.description)}</p>
-            </div>
-          `).join('')}
-        </div>
+      <div class="vdivider"></div>
+      <div class="stat">
+        <span class="badge ${a.overall_sentiment}">${sentEmoji(a.overall_sentiment)} ${a.overall_sentiment}</span>
+        <span class="stat-lbl">Sentiment · ${score >= 0 ? '+' : ''}${pct}%</span>
+      </div>
+      ${failed.length ? `
+      <div class="vdivider"></div>
+      <div class="stat">
+        <span class="stat-val" style="color:var(--neg)">${failed.length}</span>
+        <span class="stat-lbl">Sources failed</span>
       </div>` : ''}
+    </div>
 
-      <!-- Posts -->
-      <div>
-        <p class="section-label">Posts (${posts.length})</p>
-        <div class="posts-list" id="posts-list">
-          ${posts.map((p, i) => renderPost(p, i, analysis.post_sentiments)).join('')}
-        </div>
+    <!-- Executive summary -->
+    <div class="card">
+      <div class="card-header">
+        <h2>Intelligence Brief</h2>
+        <span class="chip">Claude Sonnet</span>
       </div>
+      <div class="card-body">
+        <p class="summary-text">${esc(a.executive_summary)}</p>
+      </div>
+    </div>
 
-    </div>`;
+    <!-- Theme analysis -->
+    ${a.theme_analysis?.length ? `
+    <div>
+      <p class="section-label">Theme Analysis</p>
+      <div class="themes-analysis-grid">
+        ${a.theme_analysis.map(t => `
+          <div class="theme-card">
+            <div class="theme-card-header">
+              <span class="theme-pill ${t.theme}">${THEME_ICONS[t.theme] || ''} ${THEME_LABELS[t.theme] || t.theme}</span>
+              <span class="badge ${t.sentiment}" style="font-size:10px">${sentEmoji(t.sentiment)}</span>
+            </div>
+            <p class="theme-headline">${esc(t.headline)}</p>
+            <ul class="theme-insights">
+              ${(t.insights || []).map(i => `<li>${esc(i)}</li>`).join('')}
+            </ul>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
 
-  // Expand/collapse
-  document.querySelectorAll('.post-main').forEach(el => {
-    el.addEventListener('click', () => el.closest('.post-card').classList.toggle('expanded'));
-  });
-}
+    <!-- Companies & Products -->
+    ${a.companies_and_products?.length ? `
+    <div>
+      <p class="section-label">Companies &amp; Products (${a.companies_and_products.length})</p>
+      <div class="companies-grid">
+        ${a.companies_and_products.map(c => `
+          <div class="company-card">
+            <div class="company-top">
+              <span class="company-name">${esc(c.name)}</span>
+              <span class="company-type">${esc(c.type)}</span>
+            </div>
+            ${c.product_category ? `<span class="company-cat">${esc(c.product_category)}</span>` : ''}
+            <p class="company-context">${esc(c.context)}</p>
+            <span class="badge ${c.sentiment}" style="align-self:flex-start;font-size:10px">${sentEmoji(c.sentiment)} ${c.sentiment}</span>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
 
-function renderPost(post, idx, sentiments) {
-  const ps = (sentiments || []).find(s => s.post_index === idx + 1);
-  const sent = ps ? ps.sentiment : 'neutral';
-  const age  = timeAgo(post.created_utc);
-  const hasDetail = post.selftext || (post.top_comments && post.top_comments.length);
+    <!-- Benchmark data -->
+    ${a.benchmark_data?.length ? `
+    <div>
+      <p class="section-label">Benchmark &amp; Research Data</p>
+      <div class="benchmarks-list">
+        ${a.benchmark_data.map(b => `
+          <div class="benchmark-item">
+            <span class="benchmark-source">${esc(b.source)}</span>
+            <span class="benchmark-stat">${esc(b.stat)}</span>
+            <span class="benchmark-sig">${esc(b.significance)}</span>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
 
-  return `
-    <div class="post-card" id="post-${idx}">
-      <div class="post-main">
-        <div class="post-score">
-          <span class="score-num">${fmtNum(post.score)}</span>
-          <span class="score-lbl">pts</span>
-        </div>
-        <div class="post-body">
-          <div class="post-title">${escHtml(post.title)}</div>
-          <div class="post-meta">
-            <span>r/${escHtml(post.subreddit)}</span>
-            <span>u/${escHtml(post.author)}</span>
-            <span>${age}</span>
-            <span>${fmtNum(post.num_comments)} comments</span>
-            <a href="${escHtml(post.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">open ↗</a>
+    <!-- Hiring signal -->
+    ${a.hiring_signal ? `
+    <div class="card">
+      <div class="card-header"><h2>Hiring Signal</h2></div>
+      <div class="card-body">
+        <div class="hiring-card">
+          <div class="hiring-trend">
+            <span class="trend-icon">${TREND_ICON[a.hiring_signal.trend] || '❓'}</span>
+            <span class="trend-label ${a.hiring_signal.trend}">${a.hiring_signal.trend}</span>
+          </div>
+          <div class="hiring-details">
+            <p class="hiring-notes">${esc(a.hiring_signal.notes)}</p>
+            ${a.hiring_signal.hot_roles?.length ? `
+            <div class="hot-roles">
+              ${a.hiring_signal.hot_roles.map(r => `<span class="role-tag">${esc(r)}</span>`).join('')}
+            </div>` : ''}
           </div>
         </div>
-        <div class="post-right">
-          <span class="badge ${sent}" style="font-size:11px;">${sentimentEmoji(sent)} ${sent}</span>
-          ${hasDetail ? '<span class="chevron">▾</span>' : ''}
-        </div>
       </div>
-      ${hasDetail ? `
-      <div class="post-detail">
-        ${post.selftext ? `<p class="post-selftext">${escHtml(post.selftext)}</p>` : ''}
-        ${post.top_comments && post.top_comments.length ? `
-          <div class="comments-section">
-            <h4>Top comments</h4>
-            ${post.top_comments.map(c => `<div class="comment">${escHtml(c)}</div>`).join('')}
-          </div>
-        ` : ''}
-      </div>` : ''}
-    </div>`;
+    </div>` : ''}
+
+    <!-- Top articles -->
+    ${a.top_articles?.length ? `
+    <div>
+      <p class="section-label">Top Articles</p>
+      <div class="articles-list">
+        ${a.top_articles.map((ar, i) => {
+          const src = articles[ar.article_index - 1] || {};
+          return `
+          <div class="article-row">
+            <span class="article-num">${i + 1}</span>
+            <div class="article-body">
+              <div class="article-title">
+                ${src.url
+                  ? `<a href="${esc(src.url)}" target="_blank" rel="noopener">${esc(ar.title)}</a>`
+                  : esc(ar.title)}
+              </div>
+              <div class="article-meta">
+                <span>${esc(ar.source)}</span>
+                <span class="theme-pill ${ar.theme}" style="font-size:10px;padding:1px 6px">${THEME_LABELS[ar.theme] || ar.theme}</span>
+                ${src.published ? `<span>${fmtDate(src.published)}</span>` : ''}
+              </div>
+              <p class="article-why">${esc(ar.why_it_matters)}</p>
+            </div>
+          </div>`}).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Source health -->
+    ${failed.length ? `
+    <div>
+      <div class="health-summary" onclick="this.nextElementSibling.classList.toggle('open')">
+        ⚠ ${failed.length} source${failed.length > 1 ? 's' : ''} unavailable — click to see details
+      </div>
+      <div class="health-list">
+        ${failed.map(f => `
+          <div class="health-row">
+            <span class="health-source">${esc(f.source)}</span>
+            <span class="health-err">${esc(f.error)}</span>
+            <span class="health-msg">${esc(f.msg)}</span>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+
+  </div>`;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function escHtml(s) {
+function esc(s) {
   return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-
-function fmtNum(n) {
-  if (n == null) return '0';
-  if (Math.abs(n) >= 1000) return (n / 1000).toFixed(1) + 'k';
-  return String(n);
+function sentEmoji(s) {
+  return {positive:'😊',negative:'😞',neutral:'😐',mixed:'🤔'}[s] || '😐';
 }
-
-function sentimentEmoji(s) {
-  return { positive: '😊', negative: '😞', neutral: '😐', mixed: '🤔' }[s] || '😐';
+function fmtDate(d) {
+  if (!d) return '';
+  try { return new Date(d).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}); }
+  catch { return d.slice(0, 16); }
 }
-
-function timeAgo(utc) {
-  if (!utc) return '';
-  const diff = Date.now() / 1000 - utc;
-  if (diff < 3600)   return `${Math.floor(diff/60)}m ago`;
-  if (diff < 86400)  return `${Math.floor(diff/3600)}h ago`;
-  if (diff < 2592000) return `${Math.floor(diff/86400)}d ago`;
-  if (diff < 31536000) return `${Math.floor(diff/2592000)}mo ago`;
-  return `${Math.floor(diff/31536000)}y ago`;
-}
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-renderTags();
 </script>
 </body>
 </html>

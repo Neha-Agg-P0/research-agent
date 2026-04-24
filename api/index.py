@@ -234,27 +234,41 @@ def health():
 
 @app.get("/api/debug")
 async def debug():
-    """Test outbound connectivity and individual sources — visible at /api/debug"""
-    import sys
+    """Test outbound connectivity, content types, and RSS parsing."""
+    import sys, xml.etree.ElementTree as ET, re as _re
     report = {"python": sys.version, "sources": {}}
 
     test_urls = [
-        ("httpbin",      "https://httpbin.org/get"),
-        ("kitces",       "https://www.kitces.com/feed/"),
-        ("thinkadvisor", "https://www.thinkadvisor.com/feed/"),
-        ("investmentnews","https://www.investmentnews.com/feed"),
-        ("google_news",  "https://news.google.com/rss/search?q=financial+advisor&hl=en-US"),
+        ("httpbin",       "https://httpbin.org/get",                                                         False),
+        ("kitces",        "https://www.kitces.com/feed/",                                                    True),
+        ("thinkadvisor",  "https://www.thinkadvisor.com/feed/",                                              True),
+        ("investmentnews","https://www.investmentnews.com/feed",                                             True),
+        ("riabiz",        "https://riabiz.com/feed",                                                         True),
+        ("google_news",   "https://news.google.com/rss/search?q=financial+advisor&hl=en-US&gl=US&ceid=US:en",True),
     ]
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        for name, url in test_urls:
+        for name, url, parse in test_urls:
             try:
-                r = await client.get(url, headers={"User-Agent": "FAResearchAgent/1.0"}, timeout=8.0)
-                report["sources"][name] = {
-                    "status": r.status_code,
-                    "ok": r.status_code < 400,
-                    "bytes": len(r.content),
+                r = await client.get(url, headers={"User-Agent": "FAResearchAgent/1.0"}, timeout=10.0)
+                entry: dict = {
+                    "status":       r.status_code,
+                    "ok":           r.status_code < 400,
+                    "bytes":        len(r.content),
+                    "content_type": r.headers.get("content-type", "?"),
+                    "preview":      r.text[:200],
                 }
+                if parse and r.status_code < 400:
+                    try:
+                        clean = _re.sub(r'xmlns[^=]*="[^"]*"', "", r.text)
+                        root  = ET.fromstring(clean)
+                        items = root.findall(".//item")
+                        entry["items_found"] = len(items)
+                        if items:
+                            entry["first_title"] = (items[0].findtext("title") or "")[:80]
+                    except ET.ParseError as pe:
+                        entry["parse_error"] = str(pe)[:200]
+                report["sources"][name] = entry
             except Exception as e:
                 report["sources"][name] = {"ok": False, "error": type(e).__name__, "detail": str(e)[:200]}
 

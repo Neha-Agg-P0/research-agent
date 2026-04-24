@@ -87,6 +87,8 @@ main{max-width:1140px;margin:24px auto;padding:0 28px 80px}
 .citations{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
 .cite{display:inline-flex;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 7px;font-size:10px;font-weight:600;color:var(--muted);cursor:pointer;text-decoration:none;transition:all .1s}
 .cite:hover{background:var(--blue-light);color:var(--blue);border-color:var(--blue)}
+.cite-inline{display:inline-flex;align-items:center;background:var(--blue-light);color:var(--blue);border-radius:3px;padding:0 5px;font-size:10px;font-weight:700;margin:0 2px;text-decoration:none;vertical-align:baseline;transition:background .12s;line-height:1.6}
+.cite-inline:hover{background:var(--blue);color:#fff}
 .lens-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
 .lens-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
 .lens-card-hdr{padding:9px 13px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
@@ -333,8 +335,8 @@ function render(articles,a,failed,query){
             <span class="badge ${t.sentiment}" style="font-size:9px">${t.sentiment}</span>
           </div>
           <div class="lens-card-body">
-            <p class="lens-headline">${x(t.headline)}</p>
-            <ul class="lens-bullets">${(t.insights||[]).map(ins=>`<li>${x(ins)}</li>`).join('')}</ul>
+            <p class="lens-headline">${xc(t.headline,artByIdx)}</p>
+            <ul class="lens-bullets">${(t.insights||[]).map(ins=>`<li><span>${xc(ins,artByIdx)}</span></li>`).join('')}</ul>
           </div>
         </div>`).join('')}
       </div>
@@ -351,7 +353,7 @@ function render(articles,a,failed,query){
             <span class="co-type">${x(c.type)}</span>
           </div>
           ${c.product_category?`<span class="co-cat">${x(c.product_category)}</span>`:''}
-          <p class="co-ctx">${x(c.context)}</p>
+          <p class="co-ctx">${xc(c.context,artByIdx)}</p>
           <span class="badge ${c.sentiment}" style="align-self:flex-start;font-size:9px">${c.sentiment}</span>
         </div>`).join('')}
       </div>
@@ -364,8 +366,8 @@ function render(articles,a,failed,query){
         ${a.benchmark_data.map(b=>`
         <div class="bmark">
           <span class="bmark-src">${x(b.source)}</span>
-          <span class="bmark-stat">${x(b.stat)}</span>
-          <span class="bmark-sig">${x(b.significance)}</span>
+          <span class="bmark-stat">${xc(b.stat,artByIdx)}</span>
+          <span class="bmark-sig">${xc(b.significance,artByIdx)}</span>
         </div>`).join('')}
       </div>
     </div>`:''}
@@ -379,7 +381,7 @@ function render(articles,a,failed,query){
           <span class="trend-lbl ${a.hiring_signal.trend}">${a.hiring_signal.trend}</span>
         </div>
         <div style="flex:1">
-          <p class="hiring-notes">${x(a.hiring_signal.notes)}</p>
+          <p class="hiring-notes">${xc(a.hiring_signal.notes,artByIdx)}</p>
           ${a.hiring_signal.hot_roles&&a.hiring_signal.hot_roles.length?`
           <div class="hot-roles">${a.hiring_signal.hot_roles.map(r=>`<span class="role-tag">${x(r)}</span>`).join('')}</div>`:''}
         </div>
@@ -401,7 +403,7 @@ function render(articles,a,failed,query){
                 <span class="lens-tag ${ar.theme}" style="font-size:9px;padding:1px 5px">${LLABEL[ar.theme]||ar.theme}</span>
                 ${src.published?`<span>${fmtDate(src.published)}</span>`:''}
               </div>
-              <p class="art-why">${x(ar.why_it_matters)}</p>
+              <p class="art-why">${xc(ar.why_it_matters,artByIdx)}</p>
             </div>
           </div>`;
         }).join('')}
@@ -419,6 +421,18 @@ function render(articles,a,failed,query){
 }
 
 function x(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function xc(s,artByIdx){
+  const esc=x(s);
+  return esc.replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g,(_,grp)=>{
+    const nums=grp.split(/\s*,\s*/).map(n=>parseInt(n,10)).filter(n=>!isNaN(n));
+    return nums.map(n=>{
+      const art=artByIdx[n];
+      return art&&art.url
+        ?`<a class="cite-inline" href="${x(art.url)}" target="_blank" rel="noopener" title="${x(art.title||'')}">${n}</a>`
+        :`<span class="cite-inline" style="background:var(--neu-bg);color:var(--muted)">${n}</span>`;
+    }).join('');
+  });
+}
 function fmtDate(d){if(!d)return '';try{return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch{return d.slice(0,16);}}
 
 function copyShareLink(){navigator.clipboard.writeText(location.href).then(()=>showToast('Link copied!'));}

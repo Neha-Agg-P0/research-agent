@@ -169,7 +169,7 @@ async def fetch_rss(
 
     async def _attempt() -> ConnectorResult:
         try:
-            r = await client.get(url, headers=headers, timeout=10.0)
+            r = await client.get(url, headers=headers, timeout=6.0)
 
             if r.status_code == 304:
                 return ConnectorResult(source_id, source_name, theme,
@@ -222,7 +222,7 @@ async def fetch_google_news(
 
     async def _attempt() -> ConnectorResult:
         try:
-            r = await client.get(url, headers={"User-Agent": UA}, timeout=10.0)
+            r = await client.get(url, headers={"User-Agent": UA}, timeout=6.0)
             r.raise_for_status()
             articles = _parse_rss(r.text, "Google News", theme)
             # Promote real publisher name from <source> tag
@@ -271,7 +271,7 @@ async def fetch_page(
 
     async def _attempt() -> ConnectorResult:
         try:
-            r = await client.get(url, headers={"User-Agent": UA}, timeout=12.0)
+            r = await client.get(url, headers={"User-Agent": UA}, timeout=8.0)
             r.raise_for_status()
             text = re.sub(r"\s+", " ", _strip_tags(r.text))[:3000]
             articles = [{"title": title, "source": source_name, "url": url,
@@ -315,7 +315,7 @@ async def fetch_indeed(
            f"?q={quote_plus(query + ' financial advisor')}&l=United+States&sort=date")
 
     try:
-        r = await client.get(url, headers={"User-Agent": UA}, timeout=10.0)
+        r = await client.get(url, headers={"User-Agent": UA}, timeout=6.0)
         r.raise_for_status()
         articles = _parse_rss(r.text, "Indeed Jobs", "talent")
         _ok(source_id)

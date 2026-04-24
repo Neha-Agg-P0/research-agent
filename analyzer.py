@@ -18,6 +18,15 @@ _FA_SIGNALS = {
 
 def _is_fa_relevant(article: dict) -> bool:
     text = (article.get("title", "") + " " + article.get("summary", "")).lower()
+    # Always keep articles from known FA publications regardless of keywords
+    fa_sources = {
+        "kitces", "thinkadvisor", "investmentnews", "riabiz", "wealthmanagement",
+        "financial planning", "fa magazine", "xypn", "fpa", "tearsheet",
+        "indeed", "techcrunch"
+    }
+    source = article.get("source", "").lower()
+    if any(s in source for s in fa_sources):
+        return True
     return any(sig in text for sig in _FA_SIGNALS)
 
 

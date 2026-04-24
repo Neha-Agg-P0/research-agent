@@ -196,7 +196,12 @@ async def research(req: ResearchRequest):
             return
 
         if not articles:
-            yield _sse("error", {"message": "No results found. Try a broader query."})
+            fail_summary = ", ".join(f"{f['source']} ({f['error']})" for f in failed[:5])
+            yield _sse("error", {
+                "message": f"No results found — all {len(failed)} sources failed. Try a broader query.",
+                "failed_sources": failed,
+                "detail": fail_summary,
+            })
             return
 
         n_ok = len({a["source"] for a in articles})
@@ -225,3 +230,32 @@ async def research(req: ResearchRequest):
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/api/debug")
+async def debug():
+    """Test outbound connectivity and individual sources — visible at /api/debug"""
+    import sys
+    report = {"python": sys.version, "sources": {}}
+
+    test_urls = [
+        ("httpbin",      "https://httpbin.org/get"),
+        ("kitces",       "https://www.kitces.com/feed/"),
+        ("thinkadvisor", "https://www.thinkadvisor.com/feed/"),
+        ("investmentnews","https://www.investmentnews.com/feed"),
+        ("google_news",  "https://news.google.com/rss/search?q=financial+advisor&hl=en-US"),
+    ]
+
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        for name, url in test_urls:
+            try:
+                r = await client.get(url, headers={"User-Agent": "FAResearchAgent/1.0"}, timeout=8.0)
+                report["sources"][name] = {
+                    "status": r.status_code,
+                    "ok": r.status_code < 400,
+                    "bytes": len(r.content),
+                }
+            except Exception as e:
+                report["sources"][name] = {"ok": False, "error": type(e).__name__, "detail": str(e)[:200]}
+
+    return report

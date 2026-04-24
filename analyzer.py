@@ -3,7 +3,6 @@ import re
 import anthropic
 from typing import Dict, List
 
-# FA relevance keywords — articles must contain at least one to pass the filter
 _FA_SIGNALS = {
     "financial advisor", "financial adviser", "wealth management", "registered investment",
     "broker-dealer", "broker dealer", "wirehouse", "independent advisor", "advisory firm",
@@ -15,10 +14,16 @@ _FA_SIGNALS = {
     "ensemble", "breakaway", "succession planning", "managed accounts",
 }
 
+SEGMENT_CONTEXT = {
+    "solo":       "Solo advisors (<$50M AUM): single advisor, minimal staff, focused on efficiency and turnkey solutions",
+    "lead":       "Lead Advisor practices ($50–250M AUM): primary advisor + 1-2 support staff, focused on growth and client acquisition",
+    "ensemble":   "Ensemble firms ($250M–$2B AUM): multi-partner advisory practices focused on succession, practice management, and shared infrastructure",
+    "enterprise": "Enterprise firms ($2B+ AUM): large multi-advisor organizations focused on technology platforms, M&A, and institutional capabilities",
+}
+
 
 def _is_fa_relevant(article: dict) -> bool:
     text = (article.get("title", "") + " " + article.get("summary", "")).lower()
-    # Always keep articles from known FA publications regardless of keywords
     fa_sources = {
         "kitces", "thinkadvisor", "investmentnews", "riabiz", "wealthmanagement",
         "financial planning", "fa magazine", "xypn", "fpa", "tearsheet",
@@ -34,7 +39,7 @@ def _load_context() -> str:
     candidates = [
         os.path.join(os.path.dirname(os.path.abspath(__file__)), "context.md"),
         os.path.join(os.getcwd(), "context.md"),
-        "/var/task/context.md",   # Vercel serverless runtime path
+        "/var/task/context.md",
         "context.md",
     ]
     for path in candidates:
@@ -62,21 +67,25 @@ Your job:
 
 You cover: wirehouses (Merrill Lynch, Morgan Stanley, Wells Fargo Advisors, UBS), independent RIAs, broker-dealers, and advisor-facing technology and growth programs.
 
-Four analysis lenses (only use those relevant to the query):
-- INDUSTRY & FIRMS: firm strategy, M&A, channel dynamics, regulatory moves
-- ADVISOR TECHNOLOGY: fintech/wealthtech tools — CRM, planning, portfolio, compliance, AI (Zocks AI, Jump AI, Finny, etc.), Kitces Technology Map categories
-- TALENT & HIRING: advisor movement, breakaway, recruiting, headcount signals
-- GROWTH & PROGRAMS: practice growth, client acquisition, coaching, benchmarks — flag Cerulli, Schwab RIA Benchmarking, Fidelity, InvestmentNews data as high-signal
+Six analysis lenses (only use those relevant to the query):
+- DATA & INSIGHTS: benchmark studies, data products, analytics tools available to advisors; white space in data/research offerings vs competitive landscape
+- GROWTH & BENCHMARKS: practice growth programs, coaching resources, benchmark studies (Cerulli, Schwab RIA Benchmarking, Fidelity, InvestmentNews, FA Magazine) — flag every competitor program by name
+- TECHNOLOGY & AI: advisor tech landscape by Kitces category (CRM, planning, portfolio, compliance, AI meeting notes); adoption signals; BD/custodian technology partnerships; emerging startups (Zocks AI, Jump AI, Finny, etc.)
+- OPERATIONS & EFFICIENCY: back-office solutions, workflow automation, compliance monitoring, rebalancing, billing, performance reporting — solo efficiency ≠ enterprise efficiency, flag the difference
+- HNW CAPABILITIES: alternatives access (PE, hedge funds, real assets), tax/estate planning, trust services, family office, lending — for advisors serving HNW/UHNW clients; custodian and TAMP HNW programs
+- INVESTOR STRATEGY: end-client demand signals — retirement income, ESG/values-based investing, generational wealth transfer, digital advice expectations
 
 Hard rules:
 - Every claim in direct_answer must cite article indices. No claim without evidence.
 - Be specific: name firms, cite numbers, reference dates when present.
 - Prefer concrete over hedged. "AUM growth rate is the #1 tracked KPI" beats "some advisors track AUM."
 - If benchmark data exists (Cerulli, Schwab, etc.), surface it — it is authoritative.
-- Tag findings to advisor segments (solo/lead/ensemble/enterprise/RIA) wherever the answer differs by segment.
+- Tag findings to advisor segments (solo/lead/ensemble/enterprise) wherever the answer differs by segment.
 - Flag competitor moves by firm name. Generic references ("a major BD") are not acceptable.
 - Identify white space explicitly: "No major BD currently offers X" or "Advisors report needing Y but solutions are limited."
-- theme_analysis: headline only + max 3 bullet insights per theme. No prose paragraphs.
+- theme_analysis: headline only + max 3 bullet insights per lens. No prose paragraphs.
+
+{segment_instruction}
 
 ---
 
@@ -106,80 +115,49 @@ _TOOL = {
             },
             "direct_answer": {
                 "type": "array",
-                "description": "3-7 direct, opinionated answers to the query. Each claim is a confident statement backed by specific article indices. This is the primary output.",
+                "description": "3-7 direct, opinionated answers to the query. Each claim is a confident statement backed by specific article indices.",
                 "items": {
                     "type": "object",
                     "required": ["claim", "evidence_indices"],
                     "properties": {
-                        "claim": {
-                            "type": "string",
-                            "description": "A direct, confident claim that answers the query. Cite numbers/firms/sources inline where possible.",
-                        },
-                        "evidence_indices": {
-                            "type": "array",
-                            "items": {"type": "integer"},
-                            "description": "1-indexed article numbers that support this claim",
-                        },
+                        "claim": {"type": "string"},
+                        "evidence_indices": {"type": "array", "items": {"type": "integer"}},
                     },
                 },
             },
             "theme_analysis": {
                 "type": "array",
-                "description": "One compact entry per relevant theme",
+                "description": "One compact entry per relevant lens",
                 "items": {
                     "type": "object",
                     "required": ["theme", "headline", "insights", "sentiment"],
                     "properties": {
                         "theme": {
                             "type": "string",
-                            "enum": ["industry", "technology", "talent", "growth"],
+                            "enum": ["data", "growth", "technology", "operations", "hnw", "investor"],
                         },
-                        "headline": {
-                            "type": "string",
-                            "description": "Single most important finding for this theme — one sentence, direct",
-                        },
-                        "insights": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Max 3 bullet points. Specific, named, numbered where possible.",
-                        },
-                        "sentiment": {
-                            "type": "string",
-                            "enum": ["positive", "negative", "neutral", "mixed"],
-                        },
+                        "headline": {"type": "string"},
+                        "insights": {"type": "array", "items": {"type": "string"}},
+                        "sentiment": {"type": "string", "enum": ["positive", "negative", "neutral", "mixed"]},
                     },
                 },
             },
             "companies_and_products": {
                 "type": "array",
-                "description": "Notable firms, products, startups mentioned",
                 "items": {
                     "type": "object",
                     "required": ["name", "type", "context", "sentiment"],
                     "properties": {
-                        "name": {"type": "string"},
-                        "type": {
-                            "type": "string",
-                            "description": "wirehouse / RIA / broker-dealer / fintech / startup / custodian / association / other",
-                        },
-                        "product_category": {
-                            "type": "string",
-                            "description": "For fintechs: AI / CRM / planning / portfolio / compliance / marketing / other",
-                        },
-                        "context": {
-                            "type": "string",
-                            "description": "What is happening — be specific, one sentence",
-                        },
-                        "sentiment": {
-                            "type": "string",
-                            "enum": ["positive", "negative", "neutral"],
-                        },
+                        "name":             {"type": "string"},
+                        "type":             {"type": "string"},
+                        "product_category": {"type": "string"},
+                        "context":          {"type": "string"},
+                        "sentiment":        {"type": "string", "enum": ["positive", "negative", "neutral"]},
                     },
                 },
             },
             "benchmark_data": {
                 "type": "array",
-                "description": "Benchmark stats and research data points (Cerulli, Schwab, Fidelity, etc.)",
                 "items": {
                     "type": "object",
                     "required": ["source", "stat", "significance"],
@@ -194,10 +172,7 @@ _TOOL = {
                 "type": "object",
                 "required": ["trend", "notes"],
                 "properties": {
-                    "trend": {
-                        "type": "string",
-                        "enum": ["growing", "stable", "contracting", "unknown"],
-                    },
+                    "trend":     {"type": "string", "enum": ["growing", "stable", "contracting", "unknown"]},
                     "hot_roles": {"type": "array", "items": {"type": "string"}},
                     "notes":     {"type": "string"},
                 },
@@ -213,10 +188,7 @@ _TOOL = {
                         "title":          {"type": "string"},
                         "source":         {"type": "string"},
                         "theme":          {"type": "string"},
-                        "why_it_matters": {
-                            "type": "string",
-                            "description": "One sentence specific to this query — not generic",
-                        },
+                        "why_it_matters": {"type": "string"},
                     },
                 },
             },
@@ -225,19 +197,31 @@ _TOOL = {
 }
 
 
-def analyze_content(articles: list, query: str, themes: List[str]) -> Dict:
-    # Drop articles with no FA-specific signal before Claude sees them
+def analyze_content(articles: list, query: str, lenses: List[str], segment: str = "all") -> Dict:
     relevant = [a for a in articles if _is_fa_relevant(a)]
     filtered_count = len(articles) - len(relevant)
     if not relevant:
-        relevant = articles  # fallback: send everything if filter drops all
+        relevant = articles
 
     context = _load_context()
-    system_prompt = _SYSTEM_PROMPT_BASE.format(context=context if context else "(no domain context loaded)")
+
+    segment_instruction = ""
+    if segment != "all" and segment in SEGMENT_CONTEXT:
+        segment_instruction = (
+            f"SEGMENT FOCUS: {SEGMENT_CONTEXT[segment]}. "
+            "Prioritize findings relevant to this segment. "
+            "Explicitly flag when findings differ meaningfully across segments."
+        )
+
+    system_prompt = _SYSTEM_PROMPT_BASE.format(
+        segment_instruction=segment_instruction,
+        context=context if context else "(no domain context loaded)",
+    )
 
     lines = [
         f"Research query: {query}",
-        f"Active themes: {', '.join(themes)}",
+        f"Active lenses: {', '.join(lenses)}",
+        f"Segment focus: {segment}",
         f"Total articles: {len(relevant)} (filtered out {filtered_count} non-FA articles)",
         "",
     ]

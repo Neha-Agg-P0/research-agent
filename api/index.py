@@ -20,152 +20,168 @@ from analyzer import analyze_content
 app = FastAPI(title="FA Research Agent")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+# ─── Lens registry ────────────────────────────────────────────────────────────
+
+LENS_NAMES = {
+    "data":       "Data & Insights",
+    "growth":     "Growth & Benchmarks",
+    "technology": "Technology & AI",
+    "operations": "Operations & Efficiency",
+    "hnw":        "HNW Capabilities",
+    "investor":   "Investor Strategy",
+}
+VALID_LENSES = set(LENS_NAMES.keys())
+
+SEGMENT_KEYWORDS = {
+    "solo":       '"solo advisor" OR "sole practitioner" OR "single advisor"',
+    "lead":       '"lead advisor" OR "advisor team" OR "growing practice"',
+    "ensemble":   '"ensemble firm" OR "ensemble practice" OR "multi-partner"',
+    "enterprise": '"enterprise RIA" OR "large RIA" OR "multi-advisor"',
+}
+
 # ─── Source registry ──────────────────────────────────────────────────────────
-#
-# tier 1 = durable (RSS / open HTTP) — product works on these alone
-# tier 2 = conditional (scrape, platform-governed, frequently blocked)
 
 SOURCES = [
-    # ── Tier 1: RSS ───────────────────────────────────────────────────────────
-    {"id": "kitces",       "name": "Kitces",           "tier": 1, "type": "rss",
+    {"id": "kitces",       "name": "Kitces",            "tier": 1, "type": "rss",
      "url": "https://www.kitces.com/feed/",
-     "themes": ["industry", "technology", "growth"]},
+     "lenses": ["technology", "growth"]},
 
-    {"id": "thinkadvisor", "name": "ThinkAdvisor",     "tier": 1, "type": "rss",
+    {"id": "thinkadvisor", "name": "ThinkAdvisor",      "tier": 1, "type": "rss",
      "url": "https://www.thinkadvisor.com/rss/news",
-     "themes": ["industry", "talent", "growth"]},
+     "lenses": ["data", "investor", "hnw"]},
 
-    {"id": "investmentnews","name": "InvestmentNews",  "tier": 1, "type": "rss",
+    {"id": "investmentnews","name": "InvestmentNews",   "tier": 1, "type": "rss",
      "url": "https://www.investmentnews.com/rss/news",
-     "themes": ["industry", "technology", "talent"]},
+     "lenses": ["data", "technology", "growth"]},
 
-    {"id": "riabiz",       "name": "RIABiz",           "tier": 1, "type": "rss",
+    {"id": "riabiz",       "name": "RIABiz",            "tier": 1, "type": "rss",
      "url": "https://riabiz.com/articles.rss",
-     "themes": ["industry", "talent"]},
+     "lenses": ["data", "operations"]},
 
-    {"id": "wealthmgmt",   "name": "WealthManagement", "tier": 1, "type": "rss",
+    {"id": "wealthmgmt",   "name": "WealthManagement",  "tier": 1, "type": "rss",
      "url": "https://www.wealthmanagement.com/rss.xml",
-     "themes": ["industry"]},
+     "lenses": ["hnw", "investor", "data"]},
 
-    {"id": "finplanning",  "name": "Financial Planning","tier": 1, "type": "rss",
+    {"id": "finplanning",  "name": "Financial Planning", "tier": 1, "type": "rss",
      "url": "https://www.financial-planning.com/feed",
-     "themes": ["industry", "growth"]},
+     "lenses": ["growth", "operations", "hnw"]},
 
-    {"id": "famag",        "name": "FA Magazine",       "tier": 1, "type": "rss",
+    {"id": "famag",        "name": "FA Magazine",        "tier": 1, "type": "rss",
      "url": "https://www.fa-mag.com/rss",
-     "themes": ["growth", "industry"]},
+     "lenses": ["growth", "data"]},
 
-    {"id": "techcrunch",   "name": "TechCrunch Fintech","tier": 1, "type": "rss",
+    {"id": "techcrunch",   "name": "TechCrunch Fintech", "tier": 1, "type": "rss",
      "url": "https://techcrunch.com/category/fintech/feed/",
-     "themes": ["technology"]},
+     "lenses": ["technology"]},
 
-    {"id": "tearsheet",    "name": "Tearsheet",         "tier": 1, "type": "rss",
+    {"id": "tearsheet",    "name": "Tearsheet",          "tier": 1, "type": "rss",
      "url": "https://tearsheet.co/feed/",
-     "themes": ["technology"]},
+     "lenses": ["technology"]},
 
-    {"id": "xypn",         "name": "XYPN",              "tier": 1, "type": "rss",
+    {"id": "xypn",         "name": "XYPN",               "tier": 1, "type": "rss",
      "url": "https://www.xyplanningnetwork.com/feed/",
-     "themes": ["growth"]},
+     "lenses": ["growth", "operations"]},
 
-    {"id": "fpa",          "name": "FPA",               "tier": 1, "type": "rss",
+    {"id": "fpa",          "name": "FPA",                "tier": 1, "type": "rss",
      "url": "https://www.financialplanningassociation.org/learning/publications/journal/feed",
-     "themes": ["growth"]},
+     "lenses": ["growth"]},
 
-    # ── Tier 2: conditional ───────────────────────────────────────────────────
-    {"id": "kitces_map",   "name": "Kitces Tech Map",   "tier": 2, "type": "page",
+    {"id": "kitces_map",   "name": "Kitces Tech Map",    "tier": 2, "type": "page",
      "url": "https://www.kitces.com/technology-map/",
      "page_title": "Kitces Financial Advisor Technology Map",
-     "themes": ["technology"]},
+     "lenses": ["technology"]},
 
-    {"id": "indeed",       "name": "Indeed Jobs",       "tier": 2, "type": "indeed",
-     "themes": ["talent"]},
+    {"id": "indeed",       "name": "Indeed Jobs",        "tier": 2, "type": "indeed",
+     "lenses": ["data", "growth", "technology"]},
 ]
 
-# Google News query templates per theme (run dynamically against query)
+# ─── Google News query templates per lens ─────────────────────────────────────
+
 GN_TEMPLATES: Dict[str, List[str]] = {
-    "industry": [
-        "{q} financial advisor wirehouse RIA \"broker dealer\"",
-        "{q} wealth management firm merger acquisition consolidation",
-        "{q} Cerulli financial advisor benchmark",
-    ],
-    "technology": [
-        "{q} financial advisor technology fintech wealthtech platform",
-        "{q} advisor software AI automation",
-    ],
-    "talent": [
-        "{q} financial advisor hiring recruiting breakaway transition",
+    "data": [
+        "{q} financial advisor data analytics benchmark research",
+        "{q} RIA practice analytics Cerulli research data products insights",
     ],
     "growth": [
-        "{q} financial advisor practice management growth",
-        "{q} advisor client acquisition business development",
-        "{q} Cerulli Schwab Fidelity RIA benchmarking study",
+        "{q} financial advisor growth program coaching benchmarking study",
+        "{q} Cerulli Schwab Fidelity RIA benchmarking advisor practice management",
+        "{q} advisor client acquisition business development practice growth",
+    ],
+    "technology": [
+        "{q} financial advisor technology fintech wealthtech AI platform",
+        "{q} advisor software CRM planning automation BD custodian technology",
+        "{q} wealthtech startup advisor tool integration partnership",
+    ],
+    "operations": [
+        "{q} financial advisor operations efficiency back-office workflow automation",
+        "{q} advisor compliance rebalancing billing reporting operational efficiency",
+    ],
+    "hnw": [
+        "{q} financial advisor high-net-worth HNW alternatives estate planning tax",
+        "{q} advisor ultra-high-net-worth family office trust services custodian",
+        "{q} alternatives access private equity HNW advisor capabilities",
+    ],
+    "investor": [
+        "{q} investor demand financial advisor retirement income planning",
+        "{q} client expectations advisor ESG values-based investing generational wealth",
+        "{q} investor survey consumer research financial advisor demand",
     ],
 }
 
-VALID_THEMES = {"industry", "technology", "talent", "growth"}
-
 
 class ResearchRequest(BaseModel):
-    query:  str        = Field(..., min_length=1, max_length=200)
-    themes: List[str]  = Field(default=["industry", "technology", "talent", "growth"])
+    query:   str       = Field(..., min_length=1, max_length=200)
+    lenses:  List[str] = Field(default=list(LENS_NAMES.keys()))
+    segment: str       = Field(default="all")
 
 
 def _sse(event_type: str, payload: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **payload})}\n\n"
 
 
-# ─── Planner + orchestrator ───────────────────────────────────────────────────
+# ─── Orchestrator ─────────────────────────────────────────────────────────────
 
-async def fetch_all(query: str, themes: List[str]) -> Tuple[List[Dict], List[Dict]]:
-    """
-    Returns (articles, failed_sources).
-    Degrades gracefully — a useful result is returned even if many sources fail.
-    """
+async def fetch_all(
+    query: str, lenses: List[str], segment: str
+) -> Tuple[List[Dict], List[Dict]]:
     tasks = []
     seen_urls: set = set()
+    seg_suffix = f" {SEGMENT_KEYWORDS[segment]}" if segment in SEGMENT_KEYWORDS else ""
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        # Unfiltered base search — captures direct company / product name hits
         tasks.append(fetch_google_news(client, "gn_base", query, "general"))
 
         for src in SOURCES:
-            relevant_themes = [t for t in src["themes"] if t in themes]
-            if not relevant_themes:
+            relevant = [l for l in src.get("lenses", []) if l in lenses]
+            if not relevant:
                 continue
-            theme = relevant_themes[0]
-
+            lens = relevant[0]
             if src["type"] == "rss":
                 url = src["url"]
                 if url not in seen_urls:
                     seen_urls.add(url)
-                    tasks.append(fetch_rss(client, src["id"], src["name"], url, theme))
-
+                    tasks.append(fetch_rss(client, src["id"], src["name"], url, lens))
             elif src["type"] == "page":
                 tasks.append(fetch_page(
                     client, src["id"], src["name"], src["url"],
-                    theme, src.get("page_title", src["name"])
+                    lens, src.get("page_title", src["name"])
                 ))
-
-            elif src["type"] == "indeed" and "talent" in themes:
+            elif src["type"] == "indeed":
                 tasks.append(fetch_indeed(client, src["id"], query))
 
-        # Google News per theme — run in parallel with static sources
-        for theme in themes:
-            for i, tmpl in enumerate(GN_TEMPLATES.get(theme, [])):
-                gid = f"gn_{theme}_{i}"
-                tasks.append(fetch_google_news(client, gid, tmpl.format(q=query), theme))
+        for lens in lenses:
+            for i, tmpl in enumerate(GN_TEMPLATES.get(lens, [])):
+                gid = f"gn_{lens}_{i}"
+                tasks.append(fetch_google_news(client, gid, tmpl.format(q=query) + seg_suffix, lens))
 
         results: List[ConnectorResult] = await asyncio.gather(*tasks)
 
-    # Separate health report from articles
     failed = [
         {"source": r.source_name, "error": r.error_type, "msg": r.error_msg[:120]}
         for r in results if not r.success and r.articles == []
     ]
-
     all_articles = [a for r in results for a in r.articles]
 
-    # Deduplicate by normalized title prefix
     seen_titles: set = set()
     unique: List[Dict] = []
     for a in all_articles:
@@ -181,16 +197,17 @@ async def fetch_all(query: str, themes: List[str]) -> Tuple[List[Dict], List[Dic
 
 @app.post("/api/research")
 async def research(req: ResearchRequest):
-    themes = [t for t in req.themes if t in VALID_THEMES]
+    active_lenses = [l for l in req.lenses if l in VALID_LENSES]
+    segment = req.segment if req.segment in SEGMENT_KEYWORDS or req.segment == "all" else "all"
 
     async def stream():
-        if not themes:
-            yield _sse("error", {"message": "Select at least one theme."})
+        if not active_lenses:
+            yield _sse("error", {"message": "Select at least one lens."})
             return
 
         yield _sse("progress", {"step": 1, "message": "Searching across sources…"})
         try:
-            articles, failed = await fetch_all(req.query, themes)
+            articles, failed = await fetch_all(req.query, active_lenses, segment)
         except Exception as e:
             yield _sse("error", {"message": f"Fetch failed: {e}"})
             return
@@ -212,12 +229,21 @@ async def research(req: ResearchRequest):
 
         try:
             loop = asyncio.get_event_loop()
-            analysis = await loop.run_in_executor(
-                None, analyze_content, articles, req.query, themes
+            fut = loop.run_in_executor(
+                None, analyze_content, articles, req.query, active_lenses, segment
             )
+            # Send SSE keepalives every 8s so the connection doesn't idle-timeout
+            while not fut.done():
+                yield ": keepalive\n\n"
+                try:
+                    await asyncio.wait_for(asyncio.shield(fut), timeout=8.0)
+                    break
+                except asyncio.TimeoutError:
+                    pass
+            analysis = await fut
             yield _sse("results", {
-                "articles":      articles,
-                "analysis":      analysis,
+                "articles":       articles,
+                "analysis":       analysis,
                 "failed_sources": failed,
             })
         except Exception as e:
@@ -234,17 +260,16 @@ def health():
 
 @app.get("/api/debug")
 async def debug():
-    """Test outbound connectivity, content types, and RSS parsing."""
     import sys, xml.etree.ElementTree as ET, re as _re
     report = {"python": sys.version, "sources": {}}
 
     test_urls = [
-        ("httpbin",       "https://httpbin.org/get",                                                         False),
-        ("kitces",        "https://www.kitces.com/feed/",                                                    True),
-        ("thinkadvisor",  "https://www.thinkadvisor.com/feed/",                                              True),
-        ("investmentnews","https://www.investmentnews.com/feed",                                             True),
-        ("riabiz",        "https://riabiz.com/feed",                                                         True),
-        ("google_news",   "https://news.google.com/rss/search?q=financial+advisor&hl=en-US&gl=US&ceid=US:en",True),
+        ("httpbin",       "https://httpbin.org/get",                                                          False),
+        ("kitces",        "https://www.kitces.com/feed/",                                                     True),
+        ("thinkadvisor",  "https://www.thinkadvisor.com/rss/news",                                            True),
+        ("investmentnews","https://www.investmentnews.com/rss/news",                                          True),
+        ("riabiz",        "https://riabiz.com/articles.rss",                                                  True),
+        ("google_news",   "https://news.google.com/rss/search?q=financial+advisor&hl=en-US&gl=US&ceid=US:en", True),
     ]
 
     async with httpx.AsyncClient(follow_redirects=True) as client:
@@ -261,6 +286,7 @@ async def debug():
                 if parse and r.status_code < 400:
                     try:
                         clean = _re.sub(r'xmlns[^=]*="[^"]*"', "", r.text)
+                        clean = _re.sub(r'<(/?)([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+)', r'<\1\3', clean)
                         root  = ET.fromstring(clean)
                         items = root.findall(".//item")
                         entry["items_found"] = len(items)

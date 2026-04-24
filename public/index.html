@@ -1,653 +1,459 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FA Research Agent</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --blue:       #0057FF;
-      --blue-light: #EEF3FF;
-      --bg:         #F4F5F7;
-      --surface:    #ffffff;
-      --border:     #E4E6EA;
-      --text:       #111827;
-      --muted:      #6B7280;
-      --pos:        #15803d; --pos-bg: #f0fdf4;
-      --neg:        #b91c1c; --neg-bg: #fef2f2;
-      --neu-bg:     #f9fafb;
-      --mix:        #c2410c; --mix-bg: #fff7ed;
-      --radius:     10px;
-
-      --c-industry:   #7c3aed;
-      --c-technology: #0369a1;
-      --c-talent:     #b45309;
-      --c-growth:     #15803d;
-    }
-
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-           background: var(--bg); color: var(--text); min-height: 100vh; }
-
-    /* ── Header ── */
-    header {
-      background: var(--surface); border-bottom: 1px solid var(--border);
-      padding: 0 24px; display: flex; align-items: center; gap: 14px;
-      height: 54px; position: sticky; top: 0; z-index: 10;
-    }
-    .logo {
-      width: 30px; height: 30px; background: var(--blue); border-radius: 7px;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    }
-    .logo svg { fill: white; width: 16px; height: 16px; }
-    .header-text h1 { font-size: 15px; font-weight: 700; }
-    .header-text span { font-size: 11px; color: var(--muted); }
-
-    /* ── Controls ── */
-    .controls { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; }
-    .controls-inner { max-width: 1100px; margin: 0 auto; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
-
-    .field { display: flex; flex-direction: column; gap: 5px; }
-    .field-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-
-    .query-field { flex: 1 1 300px; }
-    input[type="text"] {
-      height: 38px; border: 1.5px solid var(--border); border-radius: 6px;
-      padding: 0 12px; font-size: 14px; background: var(--bg); outline: none;
-      transition: border-color .15s; width: 100%;
-    }
-    input[type="text"]:focus { border-color: var(--blue); background: #fff; }
-
-    .theme-toggles { display: flex; gap: 7px; flex-wrap: wrap; }
-    .theme-toggle {
-      display: flex; align-items: center; gap: 5px; padding: 6px 11px;
-      border-radius: 20px; cursor: pointer; border: 1.5px solid var(--border);
-      background: var(--bg); font-size: 12px; font-weight: 600; color: var(--muted);
-      transition: all .15s; user-select: none;
-    }
-    .theme-toggle input { display: none; }
-    .theme-toggle[data-theme="industry"]   { --tc: var(--c-industry); }
-    .theme-toggle[data-theme="technology"] { --tc: var(--c-technology); }
-    .theme-toggle[data-theme="talent"]     { --tc: var(--c-talent); }
-    .theme-toggle[data-theme="growth"]     { --tc: var(--c-growth); }
-    .theme-toggle.checked {
-      color: var(--tc); border-color: var(--tc);
-      background: color-mix(in srgb, var(--tc) 8%, white);
-    }
-    .toggle-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; opacity: 0; }
-    .theme-toggle.checked .toggle-dot { opacity: 1; }
-
-    #run-btn {
-      height: 38px; padding: 0 20px; background: var(--blue); color: white;
-      border: none; border-radius: 6px; font-size: 14px; font-weight: 700;
-      cursor: pointer; display: flex; align-items: center; gap: 7px;
-      transition: background .15s; flex-shrink: 0; align-self: flex-end;
-    }
-    #run-btn:hover:not(:disabled) { background: #0046d5; }
-    #run-btn:disabled { background: #9ca3af; cursor: not-allowed; }
-    .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.35);
-               border-top-color: white; border-radius: 50%;
-               animation: spin .6s linear infinite; display: none; }
-    #run-btn.loading .spinner { display: block; }
-    #run-btn.loading .btn-text { display: none; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Main ── */
-    main { max-width: 1100px; margin: 28px auto; padding: 0 24px 80px; }
-
-    .state-box {
-      background: var(--surface); border-radius: var(--radius);
-      border: 1px solid var(--border); padding: 60px 24px;
-      text-align: center; color: var(--muted);
-    }
-    .state-box .icon { font-size: 36px; margin-bottom: 12px; }
-    .state-box h3 { font-size: 16px; color: var(--text); margin-bottom: 6px; }
-    .state-box p  { font-size: 14px; }
-
-    .progress-steps { display: flex; flex-direction: column; gap: 10px;
-                      margin: 20px auto 0; max-width: 340px; text-align: left; }
-    .step { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
-    .step.active { color: var(--blue); font-weight: 600; }
-    .step.done   { color: var(--pos); }
-    .step-dot    { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-    .step.active .step-dot { animation: pulse 1s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
-
-    /* ── Results ── */
-    .results-grid { display: flex; flex-direction: column; gap: 18px; }
-
-    /* Overview bar */
-    .overview {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 12px 18px;
-      display: flex; gap: 24px; flex-wrap: wrap; align-items: center;
-    }
-    .stat { display: flex; flex-direction: column; gap: 2px; }
-    .stat-val { font-size: 20px; font-weight: 800; line-height: 1; }
-    .stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
-    .vdiv { width: 1px; background: var(--border); height: 30px; }
-
-    .badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 700;
-    }
-    .badge.positive { background: var(--pos-bg); color: var(--pos); }
-    .badge.negative { background: var(--neg-bg); color: var(--neg); }
-    .badge.neutral  { background: var(--neu-bg); color: #555; }
-    .badge.mixed    { background: var(--mix-bg); color: var(--mix); }
-
-    /* ── Direct Answer ── */
-    .answer-card {
-      background: var(--surface); border: 1.5px solid var(--blue);
-      border-radius: var(--radius); overflow: hidden;
-    }
-    .answer-header {
-      background: var(--blue); padding: 11px 18px;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .answer-header h2 { font-size: 13px; font-weight: 700; color: white; }
-    .answer-header span { font-size: 11px; color: rgba(255,255,255,.7); }
-    .answer-body { padding: 16px 18px; }
-    .answer-list { list-style: none; display: flex; flex-direction: column; gap: 14px; }
-    .answer-item { display: flex; gap: 12px; align-items: flex-start; }
-    .answer-num {
-      width: 22px; height: 22px; background: var(--blue-light); color: var(--blue);
-      border-radius: 50%; font-size: 11px; font-weight: 800; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center; margin-top: 1px;
-    }
-    .answer-content { flex: 1; }
-    .answer-claim { font-size: 14px; font-weight: 500; line-height: 1.55; color: var(--text); }
-    .citations { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-    .cite {
-      display: inline-flex; align-items: center;
-      background: var(--bg); border: 1px solid var(--border);
-      border-radius: 4px; padding: 1px 7px; font-size: 11px;
-      font-weight: 600; color: var(--muted); cursor: pointer;
-      text-decoration: none; transition: all .12s;
-    }
-    .cite:hover { background: var(--blue-light); color: var(--blue); border-color: var(--blue); }
-
-    /* Section label */
-    .section-label { font-size: 11px; font-weight: 700; text-transform: uppercase;
-                     letter-spacing: .6px; color: var(--muted); margin-bottom: 10px; }
-
-    /* Theme analysis — compact 2-col grid */
-    .themes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
-    .theme-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 13px 15px;
-    }
-    .theme-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-    .theme-pill {
-      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
-      padding: 3px 8px; border-radius: 10px;
-    }
-    .theme-pill.industry   { background: #ede9fe; color: var(--c-industry); }
-    .theme-pill.technology { background: #e0f2fe; color: var(--c-technology); }
-    .theme-pill.talent     { background: #fef3c7; color: var(--c-talent); }
-    .theme-pill.growth     { background: #dcfce7; color: var(--c-growth); }
-    .theme-headline { font-size: 13px; font-weight: 600; line-height: 1.4; margin-bottom: 8px; }
-    .theme-bullets { list-style: none; display: flex; flex-direction: column; gap: 5px; }
-    .theme-bullets li { font-size: 12px; color: #374151; line-height: 1.5;
-                        display: flex; gap: 6px; }
-    .theme-bullets li::before { content: "·"; color: var(--muted); flex-shrink: 0; font-size: 14px; }
-
-    /* Companies */
-    .companies-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 9px; }
-    .company-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 8px; padding: 11px 13px; display: flex; flex-direction: column; gap: 5px;
-    }
-    .company-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
-    .company-name { font-size: 13px; font-weight: 700; }
-    .co-type { font-size: 10px; color: var(--muted); background: var(--bg);
-               padding: 2px 6px; border-radius: 5px; white-space: nowrap; }
-    .co-cat  { font-size: 11px; color: var(--blue); font-weight: 600; }
-    .co-ctx  { font-size: 12px; color: #4b5563; line-height: 1.5; }
-
-    /* Benchmarks */
-    .benchmarks { display: flex; flex-direction: column; gap: 8px; }
-    .bmark {
-      background: #fffbeb; border: 1px solid #fde68a;
-      border-radius: 8px; padding: 11px 13px; display: flex; flex-direction: column; gap: 3px;
-    }
-    .bmark-src  { font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: .4px; }
-    .bmark-stat { font-size: 14px; font-weight: 600; }
-    .bmark-sig  { font-size: 12px; color: #78716c; }
-
-    /* Hiring signal */
-    .hiring-row { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
-    .hiring-trend { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 70px; }
-    .trend-icon  { font-size: 26px; }
-    .trend-lbl   { font-size: 11px; font-weight: 700; text-transform: uppercase; }
-    .trend-lbl.growing     { color: var(--pos); }
-    .trend-lbl.contracting { color: var(--neg); }
-    .trend-lbl.stable      { color: var(--muted); }
-    .trend-lbl.unknown     { color: var(--muted); }
-    .hiring-notes  { font-size: 13px; color: #374151; line-height: 1.6; margin-bottom: 7px; }
-    .hot-roles { display: flex; flex-wrap: wrap; gap: 5px; }
-    .role-tag  { background: #f0fdf4; color: var(--pos); border: 1px solid #bbf7d0;
-                 border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
-
-    /* Top articles */
-    .articles-list { display: flex; flex-direction: column; gap: 7px; }
-    .article-row {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 8px; padding: 11px 14px; display: flex; gap: 11px;
-    }
-    .art-num  { font-size: 11px; font-weight: 700; color: var(--muted); min-width: 18px; padding-top: 2px; }
-    .art-body { flex: 1; min-width: 0; }
-    .art-title {
-      font-size: 13px; font-weight: 600; line-height: 1.4; margin-bottom: 4px;
-    }
-    .art-title a { color: var(--text); text-decoration: none; }
-    .art-title a:hover { color: var(--blue); text-decoration: underline; }
-    .art-meta { font-size: 11px; color: var(--muted); display: flex; gap: 8px;
-                flex-wrap: wrap; margin-bottom: 4px; align-items: center; }
-    .art-why  { font-size: 12px; color: #4b5563; line-height: 1.5; }
-
-    /* Source health */
-    .health-toggle { font-size: 12px; color: var(--muted); cursor: pointer; display: inline-flex;
-                     align-items: center; gap: 5px; user-select: none; }
-    .health-toggle:hover { color: var(--text); }
-    .health-rows { margin-top: 8px; display: none; flex-direction: column; gap: 4px; }
-    .health-rows.open { display: flex; }
-    .health-row { font-size: 11px; display: flex; gap: 8px; padding: 4px 8px;
-                  background: var(--bg); border-radius: 4px; }
-    .h-source { font-weight: 600; min-width: 130px; }
-    .h-err    { color: var(--neg); }
-    .h-msg    { color: var(--muted); }
-
-    /* Card shell */
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-    .card-hdr { padding: 11px 16px; border-bottom: 1px solid var(--border);
-                display: flex; align-items: center; gap: 8px; }
-    .card-hdr h2 { font-size: 13px; font-weight: 700; }
-    .card-body { padding: 14px 16px; }
-    .chip { font-size: 10px; background: #f0f0f0; color: var(--muted);
-            padding: 2px 7px; border-radius: 10px; font-weight: 600; }
-
-    /* Share */
-    .share-btn {
-      height: 30px; padding: 0 13px; background: var(--surface); color: var(--blue);
-      border: 1.5px solid var(--blue); border-radius: 6px; font-size: 12px; font-weight: 600;
-      cursor: pointer; display: flex; align-items: center; gap: 5px;
-      transition: background .15s; margin-left: auto; flex-shrink: 0;
-    }
-    .share-btn:hover { background: var(--blue-light); }
-
-    .toast {
-      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
-      background: #1f2937; color: white; padding: 10px 20px; border-radius: 8px;
-      font-size: 13px; font-weight: 600; z-index: 200; opacity: 0;
-      transition: opacity .2s; pointer-events: none;
-    }
-    .toast.show { opacity: 1; }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FA Research Agent</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0C2340;--navy-mid:#1a3a5c;--blue:#1155CC;--blue-light:#EEF2FF;
+  --bg:#F4F6F9;--surface:#fff;--border:#DDE3ED;
+  --text:#1C2B3A;--muted:#5B6F83;
+  --pos:#065F46;--pos-bg:#ECFDF5;--neg:#991B1B;--neg-bg:#FEF2F2;
+  --neu-bg:#F8FAFC;--mix:#92400E;--mix-bg:#FFFBEB;--radius:6px;
+  --c-data:#1D4ED8;--c-growth:#065F46;--c-technology:#4338CA;
+  --c-operations:#92400E;--c-hnw:#155E75;--c-investor:#6B21A8;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.5}
+header{background:var(--navy);padding:0 28px;display:flex;align-items:center;gap:14px;height:52px;position:sticky;top:0;z-index:10;border-bottom:1px solid rgba(255,255,255,.1)}
+.logo{width:28px;height:28px;background:rgba(255,255,255,.15);border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo svg{fill:white;width:15px;height:15px}
+.header-title{font-size:14px;font-weight:700;color:#fff;letter-spacing:.2px}
+.header-sub{font-size:11px;color:rgba(255,255,255,.5);margin-left:2px}
+.header-divider{width:1px;height:20px;background:rgba(255,255,255,.15);margin:0 4px}
+.controls{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 28px 14px}
+.controls-inner{max-width:1140px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.query-row{display:flex;gap:10px;align-items:center}
+input[type=text]{flex:1;height:40px;border:1.5px solid var(--border);border-radius:var(--radius);padding:0 14px;font-size:14px;background:var(--bg);outline:none;color:var(--text);transition:border-color .15s,background .15s}
+input[type=text]:focus{border-color:var(--blue);background:#fff}
+input[type=text]::placeholder{color:var(--muted)}
+#run-btn{height:40px;padding:0 22px;background:var(--navy);color:#fff;border:none;border-radius:var(--radius);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:7px;transition:background .15s;flex-shrink:0;letter-spacing:.3px}
+#run-btn:hover:not(:disabled){background:var(--navy-mid)}
+#run-btn:disabled{background:#9ca3af;cursor:not-allowed}
+.spinner{width:13px;height:13px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:none}
+#run-btn.loading .spinner{display:block}
+#run-btn.loading .btn-text{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.filter-row{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.filter-group{display:flex;flex-direction:column;gap:6px}
+.filter-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.pills{display:flex;gap:5px;flex-wrap:wrap}
+.lens-pill{display:flex;align-items:center;gap:4px;padding:5px 11px;border-radius:4px;cursor:pointer;border:1.5px solid var(--border);background:var(--bg);font-size:11px;font-weight:600;color:var(--muted);transition:all .12s;user-select:none}
+.lens-pill input{display:none}
+.lens-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;opacity:0}
+.lens-pill[data-lens=data]{--lc:var(--c-data)}
+.lens-pill[data-lens=growth]{--lc:var(--c-growth)}
+.lens-pill[data-lens=technology]{--lc:var(--c-technology)}
+.lens-pill[data-lens=operations]{--lc:var(--c-operations)}
+.lens-pill[data-lens=hnw]{--lc:var(--c-hnw)}
+.lens-pill[data-lens=investor]{--lc:var(--c-investor)}
+.lens-pill.checked{color:var(--lc);border-color:var(--lc);background:color-mix(in srgb,var(--lc) 7%,white)}
+.lens-pill.checked .lens-dot{opacity:1}
+.seg-pill{padding:5px 12px;border-radius:4px;cursor:pointer;border:1.5px solid var(--border);background:var(--bg);font-size:11px;font-weight:600;color:var(--muted);transition:all .12s;user-select:none}
+.seg-pill.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+main{max-width:1140px;margin:24px auto;padding:0 28px 80px}
+.state-box{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:64px 24px;text-align:center;color:var(--muted)}
+.state-box .state-icon{font-size:32px;margin-bottom:14px}
+.state-box h3{font-size:15px;color:var(--text);font-weight:600;margin-bottom:6px}
+.state-box p{font-size:13px;color:var(--muted)}
+.progress-steps{display:flex;flex-direction:column;gap:10px;margin:20px auto 0;max-width:320px;text-align:left}
+.step{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+.step.active{color:var(--blue);font-weight:600}
+.step.done{color:var(--pos)}
+.step-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.step.active .step-dot{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.2}}
+.brief-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.brief-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.brief-query{font-size:17px;font-weight:700;color:var(--navy);line-height:1.35;flex:1}
+.meta-pill{font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 9px;font-weight:500}
+.report-section{margin-bottom:24px}
+.section-hdr{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.4px;color:var(--navy);padding-bottom:9px;border-bottom:1.5px solid var(--navy);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.section-count{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:0}
+.share-btn{height:32px;padding:0 14px;background:var(--surface);color:var(--navy);border:1.5px solid var(--navy);border-radius:var(--radius);font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .12s;letter-spacing:.3px;flex-shrink:0}
+.share-btn:hover{background:var(--blue-light)}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.badge.positive{background:var(--pos-bg);color:var(--pos)}
+.badge.negative{background:var(--neg-bg);color:var(--neg)}
+.badge.neutral{background:var(--neu-bg);color:#555}
+.badge.mixed{background:var(--mix-bg);color:var(--mix)}
+.answer-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.answer-list{list-style:none;display:flex;flex-direction:column}
+.answer-item{display:flex;gap:14px;padding:14px 18px;border-bottom:1px solid var(--border)}
+.answer-item:last-child{border-bottom:none}
+.answer-num{width:22px;height:22px;background:var(--navy);color:#fff;border-radius:3px;font-size:10px;font-weight:800;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.answer-claim{font-size:13.5px;font-weight:500;line-height:1.6;color:var(--text)}
+.citations{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.cite{display:inline-flex;align-items:center;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:1px 7px;font-size:10px;font-weight:600;color:var(--muted);cursor:pointer;text-decoration:none;transition:all .1s}
+.cite:hover{background:var(--blue-light);color:var(--blue);border-color:var(--blue)}
+.lens-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.lens-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.lens-card-hdr{padding:9px 13px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.lens-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 7px;border-radius:3px}
+.lens-tag.data{background:color-mix(in srgb,var(--c-data) 10%,white);color:var(--c-data)}
+.lens-tag.growth{background:color-mix(in srgb,var(--c-growth) 10%,white);color:var(--c-growth)}
+.lens-tag.technology{background:color-mix(in srgb,var(--c-technology) 10%,white);color:var(--c-technology)}
+.lens-tag.operations{background:color-mix(in srgb,var(--c-operations) 10%,white);color:var(--c-operations)}
+.lens-tag.hnw{background:color-mix(in srgb,var(--c-hnw) 10%,white);color:var(--c-hnw)}
+.lens-tag.investor{background:color-mix(in srgb,var(--c-investor) 10%,white);color:var(--c-investor)}
+.lens-card-body{padding:12px 13px}
+.lens-headline{font-size:12.5px;font-weight:600;line-height:1.45;margin-bottom:9px;color:var(--text)}
+.lens-bullets{list-style:none;display:flex;flex-direction:column;gap:5px}
+.lens-bullets li{font-size:12px;color:#374151;line-height:1.5;display:flex;gap:7px}
+.lens-bullets li::before{content:"—";color:var(--muted);flex-shrink:0;font-size:12px}
+.companies-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.company-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;display:flex;flex-direction:column;gap:5px}
+.company-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px}
+.company-name{font-size:13px;font-weight:700;color:var(--navy)}
+.co-type{font-size:9px;color:var(--muted);background:var(--bg);padding:2px 6px;border-radius:3px;white-space:nowrap;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.co-cat{font-size:11px;color:var(--blue);font-weight:600}
+.co-ctx{font-size:12px;color:#4b5563;line-height:1.5}
+.benchmarks{display:flex;flex-direction:column;gap:7px}
+.bmark{background:#FFFDF5;border:1px solid #E8D88A;border-left:3px solid #C9A227;border-radius:var(--radius);padding:11px 14px;display:flex;flex-direction:column;gap:3px}
+.bmark-src{font-size:9px;font-weight:800;color:#7A5C00;text-transform:uppercase;letter-spacing:.8px}
+.bmark-stat{font-size:13.5px;font-weight:600;color:var(--text)}
+.bmark-sig{font-size:12px;color:#6B6B5E}
+.hiring-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.hiring-row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.trend-block{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:64px}
+.trend-icon{font-size:24px}
+.trend-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.trend-lbl.growing{color:var(--pos)}
+.trend-lbl.contracting{color:var(--neg)}
+.trend-lbl.stable,.trend-lbl.unknown{color:var(--muted)}
+.hiring-notes{font-size:12.5px;color:#374151;line-height:1.6;margin-bottom:8px}
+.hot-roles{display:flex;flex-wrap:wrap;gap:5px}
+.role-tag{background:var(--pos-bg);color:var(--pos);border:1px solid #A7F3D0;border-radius:3px;padding:2px 8px;font-size:11px;font-weight:600}
+.articles-list{display:flex;flex-direction:column;gap:6px}
+.article-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 15px;display:flex;gap:12px;transition:border-color .12s}
+.article-row:hover{border-color:#aac4e8}
+.art-num{font-size:11px;font-weight:700;color:var(--muted);min-width:18px;padding-top:1px}
+.art-body{flex:1;min-width:0}
+.art-title{font-size:13px;font-weight:600;line-height:1.4;margin-bottom:4px}
+.art-title a{color:var(--navy);text-decoration:none}
+.art-title a:hover{color:var(--blue);text-decoration:underline}
+.art-meta{font-size:11px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px;align-items:center}
+.art-why{font-size:12px;color:#4b5563;line-height:1.5}
+.health-toggle{font-size:11px;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:5px;user-select:none}
+.health-toggle:hover{color:var(--text)}
+.health-rows{margin-top:8px;display:none;flex-direction:column;gap:3px}
+.health-rows.open{display:flex}
+.health-row{font-size:11px;display:flex;gap:8px;padding:4px 8px;background:var(--bg);border-radius:3px}
+.h-source{font-weight:600;min-width:130px}
+.h-err{color:var(--neg)}
+.h-msg{color:var(--muted);flex:1}
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 20px;border-radius:6px;font-size:12px;font-weight:700;z-index:200;opacity:0;transition:opacity .2s;pointer-events:none;letter-spacing:.3px}
+.toast.show{opacity:1}
+</style>
 </head>
 <body>
-
 <header>
-  <div class="logo">
-    <svg viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-  </div>
-  <div class="header-text">
-    <h1>FA Research Agent</h1>
-    <span>Financial Advisory Industry Intelligence · powered by Claude</span>
-  </div>
+<div class="logo"><svg viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></div>
+<div class="header-title">FA Research Agent</div>
+<div class="header-divider"></div>
+<div class="header-sub">Financial Advisory Industry Intelligence · powered by Claude</div>
 </header>
-
-<div class="controls">
-  <div class="controls-inner">
-    <div class="field query-field">
-      <label class="field-label">Research query</label>
-      <input type="text" id="query-input"
-        placeholder="e.g. key KPIs for advisor growth, Zocks AI, RIA consolidation trends…" />
-    </div>
-
-    <div class="field">
-      <label class="field-label">Themes</label>
-      <div class="theme-toggles">
-        <label class="theme-toggle checked" data-theme="industry">
-          <input type="checkbox" value="industry" checked><span class="toggle-dot"></span>Industry &amp; Firms
-        </label>
-        <label class="theme-toggle checked" data-theme="technology">
-          <input type="checkbox" value="technology" checked><span class="toggle-dot"></span>Advisor Technology
-        </label>
-        <label class="theme-toggle checked" data-theme="talent">
-          <input type="checkbox" value="talent" checked><span class="toggle-dot"></span>Talent &amp; Hiring
-        </label>
-        <label class="theme-toggle checked" data-theme="growth">
-          <input type="checkbox" value="growth" checked><span class="toggle-dot"></span>Growth &amp; Programs
-        </label>
-      </div>
-    </div>
-
-    <button id="run-btn">
-      <div class="spinner"></div>
-      <span class="btn-text">Analyze</span>
-    </button>
-  </div>
+<div class="controls"><div class="controls-inner">
+<div class="query-row">
+<input type="text" id="query-input" placeholder="e.g. growth KPIs for ensemble advisors, AI tool adoption, HNW service model gaps…"/>
+<button id="run-btn"><div class="spinner"></div><span class="btn-text">Analyze</span></button>
 </div>
-
+<div class="filter-row">
+<div class="filter-group">
+<span class="filter-label">Strategic Lens</span>
+<div class="pills" id="lens-pills">
+<label class="lens-pill checked" data-lens="data"><input type="checkbox" value="data" checked><span class="lens-dot"></span>Data &amp; Insights</label>
+<label class="lens-pill checked" data-lens="growth"><input type="checkbox" value="growth" checked><span class="lens-dot"></span>Growth &amp; Benchmarks</label>
+<label class="lens-pill checked" data-lens="technology"><input type="checkbox" value="technology" checked><span class="lens-dot"></span>Technology &amp; AI</label>
+<label class="lens-pill checked" data-lens="operations"><input type="checkbox" value="operations" checked><span class="lens-dot"></span>Operations &amp; Efficiency</label>
+<label class="lens-pill checked" data-lens="hnw"><input type="checkbox" value="hnw" checked><span class="lens-dot"></span>HNW Capabilities</label>
+<label class="lens-pill checked" data-lens="investor"><input type="checkbox" value="investor" checked><span class="lens-dot"></span>Investor Strategy</label>
+</div>
+</div>
+<div class="filter-group">
+<span class="filter-label">Advisor Segment</span>
+<div class="pills" id="seg-pills">
+<span class="seg-pill active" data-seg="all">All Segments</span>
+<span class="seg-pill" data-seg="solo">Solo</span>
+<span class="seg-pill" data-seg="lead">Lead Advisor</span>
+<span class="seg-pill" data-seg="ensemble">Ensemble</span>
+<span class="seg-pill" data-seg="enterprise">Enterprise</span>
+</div>
+</div>
+</div>
+</div></div>
 <main id="main-content">
-  <div class="state-box">
-    <div class="icon">📊</div>
-    <h3>Enter a query to get started</h3>
-    <p>Ask about a company, trend, KPI, technology, or any FA industry topic.</p>
-  </div>
+<div class="state-box"><div class="state-icon">📊</div><h3>Enter a query to get started</h3><p>Ask about a company, trend, KPI, technology, or any FA industry topic.</p></div>
 </main>
-
 <script>
-const queryInput  = document.getElementById('query-input');
-const runBtn      = document.getElementById('run-btn');
-const mainContent = document.getElementById('main-content');
-let loading = false;
+const queryInput=document.getElementById('query-input');
+const runBtn=document.getElementById('run-btn');
+const mainContent=document.getElementById('main-content');
+let loading=false;
+let activeSegment='all';
 
-// Theme toggles
-document.querySelectorAll('.theme-toggle').forEach(lbl => {
-  lbl.addEventListener('click', () => {
-    const cb = lbl.querySelector('input');
-    cb.checked = !cb.checked;
-    lbl.classList.toggle('checked', cb.checked);
+document.querySelectorAll('.lens-pill').forEach(lbl=>{
+  lbl.addEventListener('click',()=>{
+    const cb=lbl.querySelector('input');
+    cb.checked=!cb.checked;
+    lbl.classList.toggle('checked',cb.checked);
   });
 });
-const activeThemes = () =>
-  [...document.querySelectorAll('.theme-toggle input:checked')].map(c => c.value);
+const activeLenses=()=>[...document.querySelectorAll('.lens-pill input:checked')].map(c=>c.value);
 
-// Research
-runBtn.addEventListener('click', run);
-queryInput.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+document.querySelectorAll('.seg-pill').forEach(pill=>{
+  pill.addEventListener('click',()=>{
+    document.querySelectorAll('.seg-pill').forEach(p=>p.classList.remove('active'));
+    pill.classList.add('active');
+    activeSegment=pill.dataset.seg;
+  });
+});
 
-async function run(updateUrl = true) {
-  const query = queryInput.value.trim();
-  if (!query) { queryInput.focus(); return; }
-  const themes = activeThemes();
-  if (!themes.length) { alert('Select at least one theme.'); return; }
-  if (loading) return;
-  loading = true;
-  runBtn.disabled = true;
+runBtn.addEventListener('click',()=>run());
+queryInput.addEventListener('keydown',e=>{if(e.key==='Enter')run();});
+
+async function run(updateUrl=true){
+  const query=queryInput.value.trim();
+  if(!query){queryInput.focus();return;}
+  const lenses=activeLenses();
+  if(!lenses.length){alert('Select at least one lens.');return;}
+  if(loading)return;
+  loading=true;
+  runBtn.disabled=true;
   runBtn.classList.add('loading');
-  if (updateUrl) {
-    const p = new URLSearchParams({ q: query, themes: themes.join(',') });
-    history.pushState({}, '', '?' + p.toString());
+  if(updateUrl){
+    const p=new URLSearchParams({q:query,lenses:lenses.join(','),segment:activeSegment});
+    history.pushState({},'','?'+p.toString());
   }
   showLoading();
-
-  try {
-    const resp = await fetch('/api/research', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, themes }),
+  try{
+    const resp=await fetch('/api/research',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query,lenses,segment:activeSegment}),
     });
-    if (!resp.ok) {
-      const e = await resp.json().catch(() => ({ detail: 'Request failed' }));
-      showError(e.detail || 'Unknown error'); return;
+    if(!resp.ok){
+      const e=await resp.json().catch(()=>({detail:'Request failed'}));
+      showError(e.detail||'Unknown error');return;
     }
-    const reader = resp.body.getReader();
-    const dec = new TextDecoder();
-    let buf = '';
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split('\n'); buf = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const evt = JSON.parse(line.slice(6));
-          if      (evt.type === 'progress') setStep(evt.step, evt.message);
-          else if (evt.type === 'results')  render(evt.articles, evt.analysis, evt.failed_sources || []);
-          else if (evt.type === 'error')    showError(evt.message);
-        } catch {}
+    const reader=resp.body.getReader();
+    const dec=new TextDecoder();
+    let buf='';
+    while(true){
+      const {value,done}=await reader.read();
+      if(done)break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split('\n');buf=lines.pop();
+      for(const line of lines){
+        if(!line.startsWith('data: '))continue;
+        try{
+          const evt=JSON.parse(line.slice(6));
+          if(evt.type==='progress')setStep(evt.step,evt.message);
+          else if(evt.type==='results')render(evt.articles,evt.analysis,evt.failed_sources||[],query);
+          else if(evt.type==='error')showError(evt.message);
+        }catch{}
       }
     }
-  } catch (e) { showError('Network error: ' + e.message); }
-  finally {
-    loading = false; runBtn.disabled = false; runBtn.classList.remove('loading');
-  }
+  }catch(e){showError('Network error: '+e.message);}
+  finally{loading=false;runBtn.disabled=false;runBtn.classList.remove('loading');}
 }
 
-function showLoading() {
-  mainContent.innerHTML = `
-    <div class="state-box">
-      <div class="icon">⏳</div><h3>Researching…</h3>
-      <div class="progress-steps">
-        <div class="step active" id="s1"><div class="step-dot"></div><span>Searching across sources</span></div>
-        <div class="step"        id="s2"><div class="step-dot"></div><span>Analyzing with Claude</span></div>
+function showLoading(){
+  mainContent.innerHTML=`<div class="state-box"><div class="state-icon">⏳</div><h3>Researching…</h3>
+    <div class="progress-steps">
+      <div class="step active" id="s1"><div class="step-dot"></div><span>Searching across sources</span></div>
+      <div class="step" id="s2"><div class="step-dot"></div><span>Analyzing with Claude</span></div>
+    </div></div>`;
+}
+function setStep(n,msg){
+  const s1=document.getElementById('s1'),s2=document.getElementById('s2');
+  if(!s1)return;
+  if(n===1)s1.querySelector('span').textContent=msg;
+  if(n===2){s1.classList.replace('active','done');s2.classList.add('active');s2.querySelector('span').textContent=msg;}
+}
+function showError(msg){
+  mainContent.innerHTML=`<div class="state-box"><div class="state-icon">⚠</div><h3>Something went wrong</h3><p>${x(msg)}</p></div>`;
+}
+
+const LLABEL={data:'Data & Insights',growth:'Growth & Benchmarks',technology:'Technology & AI',operations:'Operations & Efficiency',hnw:'HNW Capabilities',investor:'Investor Strategy'};
+const SLABEL={all:'All Segments',solo:'Solo',lead:'Lead Advisor',ensemble:'Ensemble',enterprise:'Enterprise'};
+const TRENDICON={growing:'📈',stable:'→',contracting:'📉',unknown:'?'};
+
+function render(articles,a,failed,query){
+  const nsrc=new Set(articles.map(r=>r.source)).size;
+  const artByIdx={};
+  articles.forEach((ar,i)=>{artByIdx[i+1]=ar;});
+  const segLabel=SLABEL[activeSegment]||'All Segments';
+
+  mainContent.innerHTML=`<div>
+    <div class="brief-header">
+      <div style="flex:1">
+        <div class="brief-query">${x(query)}</div>
+        <div class="brief-meta">
+          <span class="meta-pill">${articles.length} articles</span>
+          <span class="meta-pill">${nsrc} sources</span>
+          <span class="meta-pill">${segLabel}</span>
+          <span class="badge ${a.overall_sentiment||'neutral'}">${a.overall_sentiment||'neutral'}</span>
+          ${failed.length?`<span class="meta-pill" style="color:var(--neg)">${failed.length} sources failed</span>`:''}
+        </div>
       </div>
-    </div>`;
-}
-function setStep(n, msg) {
-  const s1 = document.getElementById('s1'), s2 = document.getElementById('s2');
-  if (!s1) return;
-  if (n === 1) s1.querySelector('span').textContent = msg;
-  if (n === 2) { s1.classList.replace('active','done'); s2.classList.add('active'); s2.querySelector('span').textContent = msg; }
-}
-function showError(msg) {
-  mainContent.innerHTML = `<div class="state-box"><div class="icon">⚠️</div><h3>Something went wrong</h3><p>${x(msg)}</p></div>`;
-}
-
-// ── Render ────────────────────────────────────────────────────────────────────
-const TLABEL = { industry:'Industry & Firms', technology:'Advisor Technology', talent:'Talent & Hiring', growth:'Growth & Programs' };
-const TICON  = { industry:'🏛', technology:'💡', talent:'👥', growth:'📈' };
-const TRENDICON = { growing:'📈', stable:'➡️', contracting:'📉', unknown:'❓' };
-
-function render(articles, a, failed) {
-  const score   = a.sentiment_score ?? 0;
-  const pct     = Math.round(Math.abs(score) * 100);
-  const nsrc    = new Set(articles.map(r => r.source)).size;
-
-  // Build article URL lookup (1-indexed)
-  const artByIdx = {};
-  articles.forEach((ar, i) => { artByIdx[i + 1] = ar; });
-
-  mainContent.innerHTML = `<div class="results-grid">
-
-    <!-- Overview -->
-    <div class="overview">
-      <div class="stat"><span class="stat-val">${articles.length}</span><span class="stat-lbl">Articles</span></div>
-      <div class="vdiv"></div>
-      <div class="stat"><span class="stat-val">${nsrc}</span><span class="stat-lbl">Sources</span></div>
-      <div class="vdiv"></div>
-      <div class="stat">
-        <span class="badge ${a.overall_sentiment}">${sEmoji(a.overall_sentiment)} ${a.overall_sentiment}</span>
-        <span class="stat-lbl">Sentiment · ${score >= 0 ? '+' : ''}${pct}%</span>
-      </div>
-      ${failed.length ? `<div class="vdiv"></div>
-      <div class="stat"><span class="stat-val" style="color:var(--neg)">${failed.length}</span><span class="stat-lbl">Sources failed</span></div>` : ''}
-      <button class="share-btn" onclick="copyShareLink()">🔗 Copy link</button>
+      <button class="share-btn" onclick="copyShareLink()">↗ Share</button>
     </div>
 
-    <!-- Direct Answer -->
-    ${a.direct_answer?.length ? `
-    <div class="answer-card">
-      <div class="answer-header">
-        <h2>Direct Answer</h2>
-        <span>Based on ${articles.length} articles · ${nsrc} sources</span>
-      </div>
-      <div class="answer-body">
-        <ol class="answer-list">
-          ${a.direct_answer.map((item, i) => `
-          <li class="answer-item">
-            <span class="answer-num">${i + 1}</span>
-            <div class="answer-content">
-              <p class="answer-claim">${x(item.claim)}</p>
-              ${item.evidence_indices?.length ? `
-              <div class="citations">
-                ${item.evidence_indices.map(idx => {
-                  const art = artByIdx[idx];
-                  return art
-                    ? `<a class="cite" href="${x(art.url)}" target="_blank" rel="noopener" title="${x(art.title)}">[${idx}] ${x(art.source)}</a>`
-                    : `<span class="cite">[${idx}]</span>`;
-                }).join('')}
-              </div>` : ''}
-            </div>
-          </li>`).join('')}
-        </ol>
-      </div>
-    </div>` : ''}
-
-    <!-- Theme analysis -->
-    ${a.theme_analysis?.length ? `
-    <div>
-      <p class="section-label">Evidence by Theme</p>
-      <div class="themes-grid">
-        ${a.theme_analysis.map(t => `
-        <div class="theme-card">
-          <div class="theme-card-top">
-            <span class="theme-pill ${t.theme}">${TICON[t.theme] || ''} ${TLABEL[t.theme] || t.theme}</span>
-            <span class="badge ${t.sentiment}" style="font-size:10px">${sEmoji(t.sentiment)}</span>
+    ${a.direct_answer&&a.direct_answer.length?`
+    <div class="report-section">
+      <div class="section-hdr"><span>Direct Answer</span><span class="section-count">${a.direct_answer.length} findings</span></div>
+      <div class="answer-card"><ol class="answer-list">
+        ${a.direct_answer.map((item,i)=>`
+        <li class="answer-item">
+          <span class="answer-num">${i+1}</span>
+          <div style="flex:1">
+            <p class="answer-claim">${x(item.claim)}</p>
+            ${item.evidence_indices&&item.evidence_indices.length?`
+            <div class="citations">
+              ${item.evidence_indices.map(idx=>{
+                const art=artByIdx[idx];
+                return art?`<a class="cite" href="${x(art.url)}" target="_blank" rel="noopener" title="${x(art.title)}">[${idx}] ${x(art.source)}</a>`:`<span class="cite">[${idx}]</span>`;
+              }).join('')}
+            </div>`:''}
           </div>
-          <p class="theme-headline">${x(t.headline)}</p>
-          <ul class="theme-bullets">
-            ${(t.insights || []).map(ins => `<li>${x(ins)}</li>`).join('')}
-          </ul>
+        </li>`).join('')}
+      </ol></div>
+    </div>`:''}
+
+    ${a.theme_analysis&&a.theme_analysis.length?`
+    <div class="report-section">
+      <div class="section-hdr"><span>Analysis by Lens</span><span class="section-count">${a.theme_analysis.length} lenses</span></div>
+      <div class="lens-grid">
+        ${a.theme_analysis.map(t=>`
+        <div class="lens-card">
+          <div class="lens-card-hdr">
+            <span class="lens-tag ${t.theme}">${LLABEL[t.theme]||t.theme}</span>
+            <span class="badge ${t.sentiment}" style="font-size:9px">${t.sentiment}</span>
+          </div>
+          <div class="lens-card-body">
+            <p class="lens-headline">${x(t.headline)}</p>
+            <ul class="lens-bullets">${(t.insights||[]).map(ins=>`<li>${x(ins)}</li>`).join('')}</ul>
+          </div>
         </div>`).join('')}
       </div>
-    </div>` : ''}
+    </div>`:''}
 
-    <!-- Companies & Products -->
-    ${a.companies_and_products?.length ? `
-    <div>
-      <p class="section-label">Companies &amp; Products (${a.companies_and_products.length})</p>
+    ${a.companies_and_products&&a.companies_and_products.length?`
+    <div class="report-section">
+      <div class="section-hdr"><span>Companies &amp; Products</span><span class="section-count">${a.companies_and_products.length} entities</span></div>
       <div class="companies-grid">
-        ${a.companies_and_products.map(c => `
+        ${a.companies_and_products.map(c=>`
         <div class="company-card">
           <div class="company-top">
             <span class="company-name">${x(c.name)}</span>
             <span class="co-type">${x(c.type)}</span>
           </div>
-          ${c.product_category ? `<span class="co-cat">${x(c.product_category)}</span>` : ''}
+          ${c.product_category?`<span class="co-cat">${x(c.product_category)}</span>`:''}
           <p class="co-ctx">${x(c.context)}</p>
-          <span class="badge ${c.sentiment}" style="align-self:flex-start;font-size:10px">${sEmoji(c.sentiment)} ${c.sentiment}</span>
+          <span class="badge ${c.sentiment}" style="align-self:flex-start;font-size:9px">${c.sentiment}</span>
         </div>`).join('')}
       </div>
-    </div>` : ''}
+    </div>`:''}
 
-    <!-- Benchmark data -->
-    ${a.benchmark_data?.length ? `
-    <div>
-      <p class="section-label">Benchmark &amp; Research Data</p>
+    ${a.benchmark_data&&a.benchmark_data.length?`
+    <div class="report-section">
+      <div class="section-hdr"><span>Benchmark &amp; Research Data</span><span class="section-count">${a.benchmark_data.length} data points</span></div>
       <div class="benchmarks">
-        ${a.benchmark_data.map(b => `
+        ${a.benchmark_data.map(b=>`
         <div class="bmark">
           <span class="bmark-src">${x(b.source)}</span>
           <span class="bmark-stat">${x(b.stat)}</span>
           <span class="bmark-sig">${x(b.significance)}</span>
         </div>`).join('')}
       </div>
-    </div>` : ''}
+    </div>`:''}
 
-    <!-- Hiring signal -->
-    ${a.hiring_signal ? `
-    <div class="card">
-      <div class="card-hdr"><h2>Hiring Signal</h2></div>
-      <div class="card-body">
-        <div class="hiring-row">
-          <div class="hiring-trend">
-            <span class="trend-icon">${TRENDICON[a.hiring_signal.trend] || '❓'}</span>
-            <span class="trend-lbl ${a.hiring_signal.trend}">${a.hiring_signal.trend}</span>
-          </div>
-          <div style="flex:1">
-            <p class="hiring-notes">${x(a.hiring_signal.notes)}</p>
-            ${a.hiring_signal.hot_roles?.length ? `
-            <div class="hot-roles">
-              ${a.hiring_signal.hot_roles.map(r => `<span class="role-tag">${x(r)}</span>`).join('')}
-            </div>` : ''}
-          </div>
+    ${a.hiring_signal&&a.hiring_signal.trend&&a.hiring_signal.trend!=='unknown'?`
+    <div class="report-section">
+      <div class="section-hdr"><span>Hiring Signal</span></div>
+      <div class="hiring-card"><div class="hiring-row">
+        <div class="trend-block">
+          <span class="trend-icon">${TRENDICON[a.hiring_signal.trend]||'?'}</span>
+          <span class="trend-lbl ${a.hiring_signal.trend}">${a.hiring_signal.trend}</span>
         </div>
-      </div>
-    </div>` : ''}
+        <div style="flex:1">
+          <p class="hiring-notes">${x(a.hiring_signal.notes)}</p>
+          ${a.hiring_signal.hot_roles&&a.hiring_signal.hot_roles.length?`
+          <div class="hot-roles">${a.hiring_signal.hot_roles.map(r=>`<span class="role-tag">${x(r)}</span>`).join('')}</div>`:''}
+        </div>
+      </div></div>
+    </div>`:''}
 
-    <!-- Top articles -->
-    ${a.top_articles?.length ? `
-    <div>
-      <p class="section-label">Source Articles</p>
+    ${a.top_articles&&a.top_articles.length?`
+    <div class="report-section">
+      <div class="section-hdr"><span>Source Articles</span><span class="section-count">${a.top_articles.length} selected</span></div>
       <div class="articles-list">
-        ${a.top_articles.map((ar, i) => {
-          const src = artByIdx[ar.article_index] || {};
-          return `
-          <div class="article-row">
-            <span class="art-num">${i + 1}</span>
+        ${a.top_articles.map(ar=>{
+          const src=artByIdx[ar.article_index]||{};
+          return `<div class="article-row">
+            <span class="art-num">${ar.article_index}</span>
             <div class="art-body">
-              <div class="art-title">
-                ${src.url
-                  ? `<a href="${x(src.url)}" target="_blank" rel="noopener">${x(ar.title)} ↗</a>`
-                  : x(ar.title)}
-              </div>
+              <div class="art-title">${src.url?`<a href="${x(src.url)}" target="_blank" rel="noopener">${x(ar.title)} ↗</a>`:x(ar.title)}</div>
               <div class="art-meta">
                 <span>${x(ar.source)}</span>
-                <span class="theme-pill ${ar.theme}" style="font-size:10px;padding:1px 6px">${TLABEL[ar.theme] || ar.theme}</span>
-                ${src.published ? `<span>${fmtDate(src.published)}</span>` : ''}
+                <span class="lens-tag ${ar.theme}" style="font-size:9px;padding:1px 5px">${LLABEL[ar.theme]||ar.theme}</span>
+                ${src.published?`<span>${fmtDate(src.published)}</span>`:''}
               </div>
               <p class="art-why">${x(ar.why_it_matters)}</p>
             </div>
           </div>`;
         }).join('')}
       </div>
-    </div>` : ''}
+    </div>`:''}
 
-    <!-- Source health -->
-    ${failed.length ? `
-    <div>
-      <span class="health-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
-        ⚠ ${failed.length} source${failed.length > 1 ? 's' : ''} unavailable ▾
-      </span>
+    ${failed.length?`
+    <div class="report-section">
+      <span class="health-toggle" onclick="this.nextElementSibling.classList.toggle('open')">▸ ${failed.length} source${failed.length>1?'s':''} unavailable</span>
       <div class="health-rows">
-        ${failed.map(f => `
-        <div class="health-row">
-          <span class="h-source">${x(f.source)}</span>
-          <span class="h-err">${x(f.error)}</span>
-          <span class="h-msg">${x(f.msg)}</span>
-        </div>`).join('')}
+        ${failed.map(f=>`<div class="health-row"><span class="h-source">${x(f.source)}</span><span class="h-err">${x(f.error)}</span><span class="h-msg">${x(f.msg)}</span></div>`).join('')}
       </div>
-    </div>` : ''}
-
+    </div>`:''}
   </div>`;
 }
 
-// Helpers
-function x(s) {
-  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function sEmoji(s) { return {positive:'😊',negative:'😞',neutral:'😐',mixed:'🤔'}[s]||'😐'; }
-function fmtDate(d) {
-  if (!d) return '';
-  try { return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
-  catch { return d.slice(0,16); }
-}
+function x(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtDate(d){if(!d)return '';try{return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch{return d.slice(0,16);}}
 
-// ── Share ─────────────────────────────────────────────────────────────────────
-function copyShareLink() {
-  navigator.clipboard.writeText(location.href).then(() => showToast('Link copied!'));
-}
-function showToast(msg) {
-  let t = document.getElementById('toast');
-  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
-  t.textContent = msg;
-  t.classList.add('show');
+function copyShareLink(){navigator.clipboard.writeText(location.href).then(()=>showToast('Link copied!'));}
+function showToast(msg){
+  let t=document.getElementById('toast');
+  if(!t){t=document.createElement('div');t.id='toast';t.className='toast';document.body.appendChild(t);}
+  t.textContent=msg;t.classList.add('show');
   clearTimeout(t._tid);
-  t._tid = setTimeout(() => t.classList.remove('show'), 2500);
+  t._tid=setTimeout(()=>t.classList.remove('show'),2500);
 }
 
-// ── Auto-run from shared URL ──────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
-  const p = new URLSearchParams(location.search);
-  const q = p.get('q');
-  if (!q) return;
-  queryInput.value = q;
-  const themeList = (p.get('themes') || '').split(',').filter(Boolean);
-  if (themeList.length) {
-    document.querySelectorAll('.theme-toggle').forEach(lbl => {
-      const cb = lbl.querySelector('input');
-      const on = themeList.includes(cb.value);
-      cb.checked = on;
-      lbl.classList.toggle('checked', on);
+window.addEventListener('DOMContentLoaded',()=>{
+  const p=new URLSearchParams(location.search);
+  const q=p.get('q');
+  if(!q)return;
+  queryInput.value=q;
+  const lensParam=p.get('lenses');
+  if(lensParam){
+    const s=new Set(lensParam.split(','));
+    document.querySelectorAll('.lens-pill').forEach(lbl=>{
+      const cb=lbl.querySelector('input');
+      const on=s.has(cb.value);
+      cb.checked=on;
+      lbl.classList.toggle('checked',on);
     });
   }
-  run(false); // URL already correct, don't push another history entry
+  const segParam=p.get('segment');
+  if(segParam){
+    document.querySelectorAll('.seg-pill').forEach(el=>{
+      const on=el.dataset.seg===segParam;
+      el.classList.toggle('active',on);
+      if(on)activeSegment=segParam;
+    });
+  }
+  run(false);
 });
 </script>
 </body>

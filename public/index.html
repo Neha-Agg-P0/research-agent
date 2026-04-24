@@ -267,6 +267,23 @@
     .card-body { padding: 14px 16px; }
     .chip { font-size: 10px; background: #f0f0f0; color: var(--muted);
             padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+
+    /* Share */
+    .share-btn {
+      height: 30px; padding: 0 13px; background: var(--surface); color: var(--blue);
+      border: 1.5px solid var(--blue); border-radius: 6px; font-size: 12px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; gap: 5px;
+      transition: background .15s; margin-left: auto; flex-shrink: 0;
+    }
+    .share-btn:hover { background: var(--blue-light); }
+
+    .toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+      background: #1f2937; color: white; padding: 10px 20px; border-radius: 8px;
+      font-size: 13px; font-weight: 600; z-index: 200; opacity: 0;
+      transition: opacity .2s; pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
   </style>
 </head>
 <body>
@@ -343,7 +360,7 @@ const activeThemes = () =>
 runBtn.addEventListener('click', run);
 queryInput.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
 
-async function run() {
+async function run(updateUrl = true) {
   const query = queryInput.value.trim();
   if (!query) { queryInput.focus(); return; }
   const themes = activeThemes();
@@ -352,6 +369,10 @@ async function run() {
   loading = true;
   runBtn.disabled = true;
   runBtn.classList.add('loading');
+  if (updateUrl) {
+    const p = new URLSearchParams({ q: query, themes: themes.join(',') });
+    history.pushState({}, '', '?' + p.toString());
+  }
   showLoading();
 
   try {
@@ -436,6 +457,7 @@ function render(articles, a, failed) {
       </div>
       ${failed.length ? `<div class="vdiv"></div>
       <div class="stat"><span class="stat-val" style="color:var(--neg)">${failed.length}</span><span class="stat-lbl">Sources failed</span></div>` : ''}
+      <button class="share-btn" onclick="copyShareLink()">🔗 Copy link</button>
     </div>
 
     <!-- Direct Answer -->
@@ -596,6 +618,37 @@ function fmtDate(d) {
   try { return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
   catch { return d.slice(0,16); }
 }
+
+// ── Share ─────────────────────────────────────────────────────────────────────
+function copyShareLink() {
+  navigator.clipboard.writeText(location.href).then(() => showToast('Link copied!'));
+}
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Auto-run from shared URL ──────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const p = new URLSearchParams(location.search);
+  const q = p.get('q');
+  if (!q) return;
+  queryInput.value = q;
+  const themeList = (p.get('themes') || '').split(',').filter(Boolean);
+  if (themeList.length) {
+    document.querySelectorAll('.theme-toggle').forEach(lbl => {
+      const cb = lbl.querySelector('input');
+      const on = themeList.includes(cb.value);
+      cb.checked = on;
+      lbl.classList.toggle('checked', on);
+    });
+  }
+  run(false); // URL already correct, don't push another history entry
+});
 </script>
 </body>
 </html>

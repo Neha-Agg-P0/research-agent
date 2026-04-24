@@ -32,15 +32,15 @@ SOURCES = [
      "themes": ["industry", "technology", "growth"]},
 
     {"id": "thinkadvisor", "name": "ThinkAdvisor",     "tier": 1, "type": "rss",
-     "url": "https://www.thinkadvisor.com/feed/",
+     "url": "https://www.thinkadvisor.com/rss/news",
      "themes": ["industry", "talent", "growth"]},
 
     {"id": "investmentnews","name": "InvestmentNews",  "tier": 1, "type": "rss",
-     "url": "https://www.investmentnews.com/feed",
+     "url": "https://www.investmentnews.com/rss/news",
      "themes": ["industry", "technology", "talent"]},
 
     {"id": "riabiz",       "name": "RIABiz",           "tier": 1, "type": "rss",
-     "url": "https://riabiz.com/feed",
+     "url": "https://riabiz.com/articles.rss",
      "themes": ["industry", "talent"]},
 
     {"id": "wealthmgmt",   "name": "WealthManagement", "tier": 1, "type": "rss",

@@ -113,7 +113,10 @@ def _classify_http(exc: Exception, status: int = 0) -> ErrorType:
 
 def _parse_rss(xml_text: str, source_name: str, theme: str) -> List[Dict]:
     items: List[Dict] = []
-    clean = re.sub(r'xmlns[^=]*="[^"]*"', "", xml_text)
+    # Remove namespace declarations, then strip ns prefixes from tag names so
+    # ET can parse feeds that use <content:encoded>, <media:content>, etc.
+    clean = re.sub(r'\s*xmlns(?::[a-zA-Z0-9_-]+)?="[^"]*"', "", xml_text)
+    clean = re.sub(r'<(/?)([a-zA-Z0-9_-]+):([a-zA-Z0-9_-]+)', r'<\1\3', clean)
     root  = ET.fromstring(clean)          # raises ET.ParseError on bad XML
     for item in root.findall(".//item")[:8]:
         title = _strip_tags(item.findtext("title", ""))
